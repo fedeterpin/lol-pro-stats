@@ -86,6 +86,7 @@ export interface PlayerRow {
   win_rate: number;
   intl_titles: number;
   worlds_titles: number;
+  image_filename: string | null;
 }
 
 export function listPlayers(limit = 2000): PlayerRow[] {

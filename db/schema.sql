@@ -99,7 +99,8 @@ CREATE TABLE IF NOT EXISTS players (
     Team              TEXT,
     Birthdate         TEXT,
     IsRetired         INTEGER,
-    IsSubstitute      INTEGER
+    IsSubstitute      INTEGER,
+    Image             TEXT     -- nombre de archivo de la foto de perfil (Leaguepedia)
 );
 CREATE INDEX IF NOT EXISTS idx_players_id ON players(ID);
 
@@ -201,7 +202,8 @@ CREATE TABLE IF NOT EXISTS player_index (
     kda           REAL,
     win_rate      REAL,
     intl_titles   INTEGER,
-    worlds_titles INTEGER
+    worlds_titles INTEGER,
+    image_filename TEXT       -- foto de perfil (Leaguepedia Players.Image)
 );
 CREATE INDEX IF NOT EXISTS idx_pidx_slug  ON player_index(slug);
 CREATE INDEX IF NOT EXISTS idx_pidx_games ON player_index(games);

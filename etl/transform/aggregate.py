@@ -136,7 +136,7 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
     rows = conn.execute("""
         SELECT pcs.player_id, pcs.display_id, pcs.games, pcs.wins, pcs.kda, pcs.win_rate,
                P.Name AS name, P.Country AS country, P.Team AS team,
-               P.IsRetired AS is_retired,
+               P.IsRetired AS is_retired, P.Image AS image_filename,
                (SELECT SP.Role FROM scoreboard_players SP WHERE SP.Link = pcs.player_id
                   AND SP.Role IS NOT NULL AND SP.Role <> ''
                 GROUP BY SP.Role ORDER BY COUNT(*) DESC LIMIT 1) AS role,
@@ -158,11 +158,12 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
         used.add(slug)
         payload.append((r["player_id"], r["display_id"], slug, r["name"], r["role"],
                         r["country"], r["team"], r["is_retired"], r["games"], r["wins"],
-                        r["kda"], r["win_rate"], r["intl_titles"], r["worlds_titles"]))
+                        r["kda"], r["win_rate"], r["intl_titles"], r["worlds_titles"],
+                        r["image_filename"]))
     conn.executemany("""INSERT INTO player_index
         (player_id, display_id, slug, name, role, country, team, is_retired, games,
-         wins, kda, win_rate, intl_titles, worlds_titles)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
+         wins, kda, win_rate, intl_titles, worlds_titles, image_filename)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
     conn.commit()
 
 

@@ -155,7 +155,7 @@ TABLES: dict[str, TableSpec] = {
         name="players", cargo_table="Players",
         fields=["OverviewPage", "ID", "Name", "NativeName", "Country", "Nationality",
                 "NationalityPrimary", "Residency", "Role", "Team", "Birthdate",
-                "IsRetired", "IsSubstitute"],
+                "IsRetired", "IsSubstitute", "Image"],
         pk=["OverviewPage"],
         bool_fields={"IsRetired", "IsSubstitute"},
         scope_field="OverviewPage",   # filtrar por lista de Links

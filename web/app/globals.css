@@ -409,7 +409,55 @@ table.board tbody tr:last-child td { border-bottom: none; }
 table.board th[data-active="true"] { color: var(--gold-bright); }
 
 /* --- Página de jugador -------------------------------------------- */
-.player-head { padding: 14px 0 4px; }
+.player-head {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 14px 0 4px;
+  flex-wrap: wrap;
+}
+.portrait {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  flex: none;
+  background-color: var(--navy);
+  background-size: cover;
+  background-position: center top;
+  clip-path: var(--cut);
+  box-shadow: 0 0 22px rgba(200, 170, 110, 0.16);
+}
+.portrait::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  clip-path: var(--cut);
+  background: linear-gradient(150deg, var(--gold), var(--gold-deep));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.player-headinfo { min-width: 0; }
+.avatar {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  border-radius: 5px;
+  background-color: var(--navy);
+  background-size: cover;
+  background-position: center top;
+  border: 1px solid var(--gold-darkest);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display-stack);
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 18px;
+}
+.pcard-head { display: flex; align-items: center; gap: 11px; }
+.pcard-id { min-width: 0; flex: 1; }
 .player-name {
   font-family: var(--font-display-stack);
   font-size: clamp(32px, 6vw, 52px);

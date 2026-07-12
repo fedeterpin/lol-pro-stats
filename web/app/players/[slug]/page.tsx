@@ -8,6 +8,7 @@ import {
   listPlayers,
 } from "@/lib/db";
 import { championSquare } from "@/lib/champion";
+import { playerPhoto } from "@/lib/player";
 import { STAT_BY_KEY, formatValue, scopeLabel } from "@/lib/stats";
 
 export function generateStaticParams() {
@@ -52,17 +53,26 @@ export default async function PlayerPage({
       </Link>
 
       <header className="player-head">
-        <h1 className="player-name">{player.display_id}</h1>
-        {player.name && player.name !== player.display_id && (
-          <p className="player-real">{player.name}</p>
+        {playerPhoto(player.image_filename) && (
+          <span
+            className="portrait"
+            style={{ backgroundImage: `url(${playerPhoto(player.image_filename)})` }}
+            aria-hidden="true"
+          />
         )}
-        {meta.length > 0 && (
-          <p className="player-meta">
-            {meta.map((m, i) => (
-              <span key={i}>{m}</span>
-            ))}
-          </p>
-        )}
+        <div className="player-headinfo">
+          <h1 className="player-name">{player.display_id}</h1>
+          {player.name && player.name !== player.display_id && (
+            <p className="player-real">{player.name}</p>
+          )}
+          {meta.length > 0 && (
+            <p className="player-meta">
+              {meta.map((m, i) => (
+                <span key={i}>{m}</span>
+              ))}
+            </p>
+          )}
+        </div>
       </header>
 
       <div className="tile-row">

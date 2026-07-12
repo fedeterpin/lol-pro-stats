@@ -186,6 +186,64 @@ CREATE TABLE IF NOT EXISTS records (
     context     TEXT                -- JSON con detalle (torneo, fecha, games, umbral)
 );
 
+-- Índice de jugadores (denormalizado): resolución de slug + header + lista/buscador.
+CREATE TABLE IF NOT EXISTS player_index (
+    player_id     TEXT PRIMARY KEY,   -- == Link
+    display_id    TEXT,
+    slug          TEXT,               -- para la URL /players/<slug>
+    name          TEXT,               -- nombre real
+    role          TEXT,
+    country       TEXT,
+    team          TEXT,
+    is_retired    INTEGER,
+    games         INTEGER,
+    wins          INTEGER,
+    kda           REAL,
+    win_rate      REAL,
+    intl_titles   INTEGER,
+    worlds_titles INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_pidx_slug  ON player_index(slug);
+CREATE INDEX IF NOT EXISTS idx_pidx_games ON player_index(games);
+
+-- Pool de campeones por jugador (para la página de jugador y récords de campeón).
+CREATE TABLE IF NOT EXISTS player_champions (
+    player_id TEXT,
+    champion  TEXT,
+    games     INTEGER,
+    wins      INTEGER,
+    kills     INTEGER,
+    deaths    INTEGER,
+    assists   INTEGER,
+    kda       REAL,
+    PRIMARY KEY (player_id, champion)
+);
+CREATE INDEX IF NOT EXISTS idx_pchamp_player ON player_champions(player_id);
+
+-- Títulos internacionales ganados por jugador (vitrina de trofeos).
+CREATE TABLE IF NOT EXISTS player_titles (
+    player_id     TEXT,
+    overview_page TEXT,
+    event         TEXT,
+    league        TEXT,
+    year          TEXT,
+    PRIMARY KEY (player_id, overview_page)
+);
+CREATE INDEX IF NOT EXISTS idx_ptitles_player ON player_titles(player_id);
+
+-- Stats por campeón (a nivel internacional): más jugados / mejor win rate.
+CREATE TABLE IF NOT EXISTS champion_stats (
+    champion  TEXT PRIMARY KEY,
+    games     INTEGER,
+    wins      INTEGER,
+    win_rate  REAL,
+    kills     INTEGER,
+    deaths    INTEGER,
+    assists   INTEGER,
+    kda       REAL,
+    n_players INTEGER
+);
+
 -- Metadatos del ETL (última corrida, versión de esquema, atribución).
 CREATE TABLE IF NOT EXISTS etl_meta (
     key   TEXT PRIMARY KEY,

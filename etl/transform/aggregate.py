@@ -1,4 +1,5 @@
-"""Transform GOLD: tiers, player_career_stats, leaderboards y records.
+"""Transform GOLD: tiers, career stats (por scope/rol), leaderboards, pool de
+campeones, títulos, stats de campeón, índice de jugadores y records.
 
 Regla de KDA (no negociable): (ΣK+ΣA)/ΣD desde totales crudos, nunca promedio de
 ratios por juego. Se usa MAX(deaths,1) en el denominador para el caso deaths=0.
@@ -6,14 +7,16 @@ ratios por juego. Se usa MAX(deaths,1) en el denominador para el caso deaths=0.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 
 from etl import config
 
+ROLES = ["Top", "Jungle", "Mid", "Bot", "Support"]
+
 
 # ---------------------------------------------------------------------------
 def compute_tiers(conn: sqlite3.Connection) -> None:
-    """Etiqueta cada torneo con su tier (registra classify_tier como función SQL)."""
     conn.create_function("classify_tier", 3,
                          lambda lg, rg, pl: config.classify_tier(lg, rg, pl))
     conn.execute("UPDATE tournaments SET Tier = classify_tier(League, Region, IsPlayoffs)")
@@ -21,10 +24,10 @@ def compute_tiers(conn: sqlite3.Connection) -> None:
 
 
 # ---------------------------------------------------------------------------
-def _career_query(tier_filter: str | None) -> str:
+def _career_query(where_extra: str = "") -> str:
     conditions = ["SP.Link IS NOT NULL", "SP.Link <> ''"]
-    if tier_filter:
-        conditions.append(f"T.Tier = '{tier_filter}'")
+    if where_extra:
+        conditions.append(where_extra)
     where = " AND ".join(conditions)
     return f"""
         SELECT
@@ -45,21 +48,121 @@ def _career_query(tier_filter: str | None) -> str:
 
 def compute_career_stats(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM player_career_stats")
-    for scope, tier in [("all", None), ("intl_premier", "intl_premier")]:
-        rows = conn.execute(_career_query(tier)).fetchall()
+    scopes = [("all", ""), ("intl_premier", "T.Tier = 'intl_premier'")]
+    scopes += [(f"role:{r}", f"SP.Role = '{r}'") for r in ROLES]
+    for scope, extra in scopes:
+        rows = conn.execute(_career_query(extra)).fetchall()
         payload = []
         for r in rows:
             kills, deaths, assists = r["kills"] or 0, r["deaths"] or 0, r["assists"] or 0
             games, wins = r["games"] or 0, r["wins"] or 0
+            if not games:
+                continue
             kda = (kills + assists) / max(deaths, 1)
-            win_rate = wins / games if games else 0.0
             payload.append((r["player_id"], scope, r["display_id"], games, wins,
                             games - wins, kills, deaths, assists, round(kda, 4),
-                            round(win_rate, 4)))
+                            round(wins / games, 4)))
         conn.executemany(
             """INSERT INTO player_career_stats
                (player_id, scope, display_id, games, wins, losses, kills, deaths,
                 assists, kda, win_rate) VALUES (?,?,?,?,?,?,?,?,?,?,?)""", payload)
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+def compute_player_champions(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM player_champions")
+    rows = conn.execute("""
+        SELECT Link AS player_id, Champion AS champion,
+               COUNT(DISTINCT GameId) AS games,
+               SUM(CASE WHEN PlayerWin = 'Yes' THEN 1 ELSE 0 END) AS wins,
+               SUM(COALESCE(Kills, 0)) AS k, SUM(COALESCE(Deaths, 0)) AS d,
+               SUM(COALESCE(Assists, 0)) AS a
+        FROM scoreboard_players
+        WHERE Link IS NOT NULL AND Link <> '' AND Champion IS NOT NULL AND Champion <> ''
+        GROUP BY Link, Champion""").fetchall()
+    payload = [(r["player_id"], r["champion"], r["games"], r["wins"], r["k"], r["d"],
+                r["a"], round((r["k"] + r["a"]) / max(r["d"], 1), 4)) for r in rows]
+    conn.executemany(
+        """INSERT INTO player_champions
+           (player_id, champion, games, wins, kills, deaths, assists, kda)
+           VALUES (?,?,?,?,?,?,?,?)""", payload)
+    conn.commit()
+
+
+def compute_player_titles(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM player_titles")
+    conn.execute("""
+        INSERT OR IGNORE INTO player_titles (player_id, overview_page, event, league, year)
+        SELECT DISTINCT TP.Link, T.OverviewPage, T.Name, T.League, T.Year
+        FROM tournament_results TR
+        JOIN tournaments T ON T.OverviewPage = TR.OverviewPage
+        JOIN tournament_players TP ON TP.PageAndTeam = TR.PageAndTeam
+        WHERE T.Tier = 'intl_premier' AND TRIM(TR.Place) = '1'
+          AND TP.Link IS NOT NULL AND TP.Link <> ''
+          AND EXISTS (SELECT 1 FROM scoreboard_players SP
+                      WHERE SP.Link = TP.Link AND SP.OverviewPage = TP.OverviewPage)""")
+    conn.commit()
+
+
+def compute_champion_stats(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM champion_stats")
+    rows = conn.execute("""
+        SELECT Champion AS champion, COUNT(DISTINCT GameId) AS games,
+               SUM(CASE WHEN PlayerWin = 'Yes' THEN 1 ELSE 0 END) AS wins,
+               SUM(COALESCE(Kills, 0)) AS k, SUM(COALESCE(Deaths, 0)) AS d,
+               SUM(COALESCE(Assists, 0)) AS a, COUNT(DISTINCT Link) AS n_players
+        FROM scoreboard_players
+        WHERE Champion IS NOT NULL AND Champion <> '' GROUP BY Champion""").fetchall()
+    payload = [(r["champion"], r["games"], r["wins"],
+                round(r["wins"] / r["games"], 4) if r["games"] else 0.0,
+                r["k"], r["d"], r["a"], round((r["k"] + r["a"]) / max(r["d"], 1), 4),
+                r["n_players"]) for r in rows]
+    conn.executemany(
+        """INSERT INTO champion_stats
+           (champion, games, wins, win_rate, kills, deaths, assists, kda, n_players)
+           VALUES (?,?,?,?,?,?,?,?,?)""", payload)
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+def _slugify(text: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+    return base or "player"
+
+
+def compute_player_index(conn: sqlite3.Connection) -> None:
+    conn.execute("DELETE FROM player_index")
+    rows = conn.execute("""
+        SELECT pcs.player_id, pcs.display_id, pcs.games, pcs.wins, pcs.kda, pcs.win_rate,
+               P.Name AS name, P.Country AS country, P.Team AS team,
+               P.IsRetired AS is_retired,
+               (SELECT SP.Role FROM scoreboard_players SP WHERE SP.Link = pcs.player_id
+                  AND SP.Role IS NOT NULL AND SP.Role <> ''
+                GROUP BY SP.Role ORDER BY COUNT(*) DESC LIMIT 1) AS role,
+               (SELECT COUNT(*) FROM player_titles pt WHERE pt.player_id = pcs.player_id) AS intl_titles,
+               (SELECT COUNT(*) FROM player_titles pt WHERE pt.player_id = pcs.player_id
+                  AND pt.league = 'World Championship') AS worlds_titles
+        FROM player_career_stats pcs
+        LEFT JOIN players P ON P.OverviewPage = pcs.player_id
+        WHERE pcs.scope = 'all'
+        ORDER BY pcs.games DESC""").fetchall()
+    used: set[str] = set()
+    payload = []
+    for r in rows:
+        slug = base = _slugify(r["display_id"] or r["player_id"])
+        i = 2
+        while slug in used:
+            slug = f"{base}-{i}"
+            i += 1
+        used.add(slug)
+        payload.append((r["player_id"], r["display_id"], slug, r["name"], r["role"],
+                        r["country"], r["team"], r["is_retired"], r["games"], r["wins"],
+                        r["kda"], r["win_rate"], r["intl_titles"], r["worlds_titles"]))
+    conn.executemany("""INSERT INTO player_index
+        (player_id, display_id, slug, name, role, country, team, is_retired, games,
+         wins, kda, win_rate, intl_titles, worlds_titles)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
     conn.commit()
 
 
@@ -69,45 +172,55 @@ def _store_leaderboard(conn, stat: str, scope: str, ranked: list[tuple]) -> None
     conn.executemany(
         """INSERT INTO leaderboards (stat, scope, rank, player_id, display_id, value, games)
            VALUES (?,?,?,?,?,?,?)""",
-        [(stat, scope, i + 1, pid, did, val, games) for i, (pid, did, val, games) in enumerate(ranked)],
+        [(stat, scope, i + 1, pid, did, val, games)
+         for i, (pid, did, val, games) in enumerate(ranked)],
     )
     conn.commit()
 
 
+# stats por-jugador que se calculan para cada scope (all + por rol)
+PER_PLAYER_STATS = [
+    ("career_kda", "kda", "career_kda"),
+    ("games_played", "games", None),
+    ("career_kills", "kills", None),
+    ("win_rate", "win_rate", "win_rate"),
+]
+
+
 def compute_leaderboards(conn: sqlite3.Connection, top_n: int = 200) -> None:
-    kda_min = config.THRESHOLDS["career_kda"]
-    wr_min = config.THRESHOLDS["win_rate"]
+    scopes = ["all"] + [f"role:{r}" for r in ROLES]
+    for scope in scopes:
+        for stat, col, thr_key in PER_PLAYER_STATS:
+            thr = config.THRESHOLDS.get(thr_key) if thr_key else None
+            extra = f"AND games >= {thr}" if thr else ""
+            rows = conn.execute(
+                f"""SELECT player_id, display_id, {col} AS value, games
+                    FROM player_career_stats WHERE scope = ? {extra}
+                    ORDER BY value DESC, games DESC LIMIT ?""", (scope, top_n)).fetchall()
+            _store_leaderboard(conn, stat, scope,
+                               [(r["player_id"], r["display_id"], r["value"], r["games"])
+                                for r in rows])
 
-    # --- boards derivados de player_career_stats (scope 'all') ---
-    def board(order_col, where=""):
-        return conn.execute(
-            f"""SELECT player_id, display_id, {order_col} AS value, games
-                FROM player_career_stats WHERE scope='all' {where}
-                ORDER BY value DESC, games DESC LIMIT ?""", (top_n,)).fetchall()
+    # KDA solo en internacionales (umbral propio, más bajo)
+    thr = config.THRESHOLDS["career_kda_intl"]
+    rows = conn.execute(
+        f"""SELECT player_id, display_id, kda AS value, games FROM player_career_stats
+            WHERE scope = 'intl_premier' AND games >= {thr}
+            ORDER BY value DESC, games DESC LIMIT ?""", (top_n,)).fetchall()
+    _store_leaderboard(conn, "career_kda_intl", "all",
+                       [(r["player_id"], r["display_id"], r["value"], r["games"]) for r in rows])
 
-    _store_leaderboard(conn, "career_kda", "all",
-                       [(r["player_id"], r["display_id"], r["value"], r["games"])
-                        for r in board("kda", f"AND games >= {kda_min}")])
-    _store_leaderboard(conn, "games_played", "all",
-                       [(r["player_id"], r["display_id"], r["value"], r["games"])
-                        for r in board("games")])
-    _store_leaderboard(conn, "career_kills", "all",
-                       [(r["player_id"], r["display_id"], r["value"], r["games"])
-                        for r in board("kills")])
-    _store_leaderboard(conn, "win_rate", "all",
-                       [(r["player_id"], r["display_id"], r["value"], r["games"])
-                        for r in board("win_rate", f"AND games >= {wr_min}")])
-
-    # --- títulos internacionales y de Worlds (roster ganador con >=1 game) ---
-    _store_leaderboard(conn, "intl_titles", "all", _titles(conn, league=None, top_n=top_n))
-    _store_leaderboard(conn, "worlds_titles", "all", _titles(conn, league="Worlds", top_n=top_n))
+    # Títulos y apariciones
+    _store_leaderboard(conn, "intl_titles", "all", _titles(conn, None, top_n))
+    _store_leaderboard(conn, "worlds_titles", "all", _titles(conn, "World Championship", top_n))
+    _store_leaderboard(conn, "msi_titles", "all", _titles(conn, "Mid-Season Invitational", top_n))
+    _store_leaderboard(conn, "worlds_appearances", "all", _worlds_appearances(conn, top_n))
 
 
 def _titles(conn, league: str | None, top_n: int) -> list[tuple]:
     league_clause = f"AND T.League = '{league}'" if league else ""
     q = f"""
         WITH winners AS (
-            -- Ganador = Place='1'. (Place_Number viene NULL desde Cargo; Place es fiable.)
             SELECT TR.OverviewPage AS op, TR.PageAndTeam AS pat
             FROM tournament_results TR
             JOIN tournaments T ON T.OverviewPage = TR.OverviewPage
@@ -118,36 +231,47 @@ def _titles(conn, league: str | None, top_n: int) -> list[tuple]:
             FROM tournament_players TP
             JOIN winners W ON W.pat = TP.PageAndTeam
             WHERE TP.Link IS NOT NULL AND TP.Link <> ''
-              AND EXISTS (
-                SELECT 1 FROM scoreboard_players SP
-                WHERE SP.Link = TP.Link AND SP.OverviewPage = TP.OverviewPage)
+              AND EXISTS (SELECT 1 FROM scoreboard_players SP
+                          WHERE SP.Link = TP.Link AND SP.OverviewPage = TP.OverviewPage)
         )
-        SELECT wp.player_id,
-               COALESCE(P.ID, wp.player_id) AS display_id,
+        SELECT wp.player_id, COALESCE(P.ID, wp.player_id) AS display_id,
                COUNT(DISTINCT wp.op) AS titles
         FROM winning_players wp
         LEFT JOIN players P ON P.OverviewPage = wp.player_id
-        GROUP BY wp.player_id
-        ORDER BY titles DESC LIMIT ?
+        GROUP BY wp.player_id ORDER BY titles DESC LIMIT ?
     """
     rows = conn.execute(q, (top_n,)).fetchall()
-    # games = None (no aplica muestra); value = nº de títulos
     return [(r["player_id"], r["display_id"], r["titles"], None) for r in rows]
+
+
+def _worlds_appearances(conn, top_n: int) -> list[tuple]:
+    rows = conn.execute("""
+        SELECT SP.Link AS player_id, COALESCE(P.ID, SP.Link) AS display_id,
+               COUNT(DISTINCT T.Year) AS appearances
+        FROM scoreboard_players SP
+        JOIN tournaments T ON T.OverviewPage = SP.OverviewPage
+        LEFT JOIN players P ON P.OverviewPage = SP.Link
+        WHERE T.Tier = 'intl_premier' AND T.League = 'World Championship'
+          AND SP.Link IS NOT NULL AND SP.Link <> ''
+        GROUP BY SP.Link ORDER BY appearances DESC LIMIT ?""", (top_n,)).fetchall()
+    return [(r["player_id"], r["display_id"], r["appearances"], None) for r in rows]
 
 
 # ---------------------------------------------------------------------------
 RECORD_LABELS = {
-    "career_kda": "Mejor KDA histórico (carrera)",
-    "games_played": "Más partidas oficiales jugadas",
-    "career_kills": "Más kills de carrera",
-    "win_rate": "Mejor win rate de carrera",
-    "intl_titles": "Más títulos internacionales",
-    "worlds_titles": "Más títulos de Worlds",
+    "intl_titles": "Most international titles",
+    "worlds_titles": "Most Worlds titles",
+    "msi_titles": "Most MSI titles",
+    "worlds_appearances": "Most Worlds appearances",
+    "games_played": "Most games played",
+    "career_kills": "Most career kills",
+    "career_kda_intl": "Best KDA at internationals",
+    "career_kda": "Best career KDA",
+    "win_rate": "Best career win rate",
 }
 
 
 def compute_records(conn: sqlite3.Connection) -> None:
-    """Toma el top-1 de cada leaderboard como récord del 'record book'."""
     conn.execute("DELETE FROM records")
     payload = []
     for stat, label in RECORD_LABELS.items():
@@ -168,5 +292,9 @@ def compute_records(conn: sqlite3.Connection) -> None:
 def run_all(conn: sqlite3.Connection) -> None:
     compute_tiers(conn)
     compute_career_stats(conn)
+    compute_player_titles(conn)
+    compute_player_champions(conn)
+    compute_champion_stats(conn)
     compute_leaderboards(conn)
+    compute_player_index(conn)
     compute_records(conn)

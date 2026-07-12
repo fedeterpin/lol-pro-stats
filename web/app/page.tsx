@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getRecords } from "@/lib/db";
 import { STAT_BY_KEY, formatValue, type StatDef } from "@/lib/stats";
 
@@ -6,15 +7,22 @@ export default function Home() {
 
   return (
     <>
-      <h1>Libro de récords</h1>
-      <p className="subtitle">
-        Los registros históricos del League of Legends profesional — como un almanaque deportivo.
-      </p>
+      <section className="hero">
+        <p className="eyebrow">League of Legends · Esports</p>
+        <h1>Hall of Records</h1>
+        <p className="subtitle">
+          The all-time record book of professional League of Legends — who owns each
+          category on the game&apos;s biggest stage, like a sports almanac.
+        </p>
+      </section>
+      <div className="divider">
+        <span className="hex-node" aria-hidden="true" />
+      </div>
 
       {records.length === 0 ? (
-        <p className="help">
-          Todavía no hay datos cargados. Corré el ETL (<code>python -m etl.run</code>) y
-          reconstruí el sitio.
+        <p className="empty">
+          No data yet. The ETL is filling the hall of records — reload the page in a
+          little while.
         </p>
       ) : (
         <div className="record-grid">
@@ -29,12 +37,20 @@ export default function Home() {
               /* noop */
             }
             return (
-              <div className="record-card" key={rec.record_key}>
-                <div className="label">{rec.label}</div>
-                <div className="holder">{rec.display_id}</div>
+              <article className="record-card" key={rec.record_key}>
+                <span className="label">{def?.label ?? rec.label}</span>
+                <div className="holder">
+                  {rec.slug ? (
+                    <Link href={`/players/${rec.slug}`} className="plink">
+                      {rec.display_id}
+                    </Link>
+                  ) : (
+                    rec.display_id
+                  )}
+                </div>
                 <div className="value">{formatValue(kind, rec.value)}</div>
-                {games != null && <div className="meta">{games} partidas</div>}
-              </div>
+                {games != null && <div className="meta">{games} games</div>}
+              </article>
             );
           })}
         </div>

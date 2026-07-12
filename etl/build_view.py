@@ -37,8 +37,10 @@ def build() -> None:
     src.close()
     dst.close()
 
-    # Agregados gold sobre la copia.
+    # Agregados gold sobre la copia. apply_schema (IF NOT EXISTS) asegura las tablas
+    # gold nuevas aunque la DB live tenga un esquema más viejo.
     conn = db.connect(TMP)
+    db.apply_schema(conn)
     aggregate.run_all(conn)
     games = conn.execute("SELECT COUNT(*) c FROM scoreboard_games").fetchone()["c"]
     prows = conn.execute("SELECT COUNT(*) c FROM scoreboard_players").fetchone()["c"]

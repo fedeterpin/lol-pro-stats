@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   createColumnHelper,
   flexRender,
@@ -10,7 +11,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import type { LeaderboardRow } from "@/lib/db";
-import { formatValue, type StatDef } from "@/lib/stats";
+import { formatValue, scopeLabel, ROLES, type StatDef } from "@/lib/stats";
 
 const col = createColumnHelper<LeaderboardRow>();
 
@@ -18,25 +19,52 @@ export default function LeaderboardExplorer({
   boards,
   catalog,
 }: {
-  boards: Record<string, LeaderboardRow[]>;
+  boards: Record<string, Record<string, LeaderboardRow[]>>;
   catalog: StatDef[];
 }) {
   const [statKey, setStatKey] = useState(catalog[0]?.key ?? "");
+  const [scope, setScope] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "rank", desc: false }]);
 
   const def = catalog.find((s) => s.key === statKey) ?? catalog[0];
-  const data = boards[statKey] ?? [];
+  const effScope = def?.roleScoped ? scope : "all";
+  const data = boards[statKey]?.[effScope] ?? [];
 
   const columns = useMemo(
     () => [
-      col.accessor("rank", { header: "#", cell: (c) => c.getValue() }),
-      col.accessor("display_id", { header: "Jugador" }),
+      col.accessor("rank", {
+        header: "#",
+        cell: (c) => {
+          const r = c.getValue() as number;
+          return r <= 3 ? (
+            <span>
+              <i>{r}</i>
+            </span>
+          ) : (
+            r
+          );
+        },
+      }),
+      col.accessor("display_id", {
+        header: "Player",
+        cell: (c) => {
+          const slug = c.row.original.slug;
+          const name = c.getValue() as string;
+          return slug ? (
+            <Link href={`/players/${slug}`} className="plink">
+              {name}
+            </Link>
+          ) : (
+            name
+          );
+        },
+      }),
       col.accessor("value", {
-        header: def?.short ?? "Valor",
+        header: def?.short ?? "Value",
         cell: (c) => formatValue(def?.kind ?? "count", c.getValue() as number),
       }),
       col.accessor("games", {
-        header: "Partidas",
+        header: "Games",
         cell: (c) => (c.getValue() == null ? "—" : (c.getValue() as number)),
       }),
     ],
@@ -68,56 +96,76 @@ export default function LeaderboardExplorer({
           </button>
         ))}
       </div>
+
+      {def?.roleScoped && (
+        <div className="controls roles">
+          {["all", ...ROLES.map((r) => `role:${r}`)].map((sc) => (
+            <button
+              key={sc}
+              className="chip role-chip"
+              data-active={sc === scope}
+              onClick={() => setScope(sc)}
+            >
+              {scopeLabel(sc)}
+            </button>
+          ))}
+        </div>
+      )}
+
       {def?.help && <p className="help">{def.help}</p>}
 
       {data.length === 0 ? (
-        <p className="help">Sin datos para este ranking todavía.</p>
+        <p className="empty">
+          Not enough data for this leaderboard yet. The ETL is still loading — try
+          reloading in a little while.
+        </p>
       ) : (
-        <table className="board">
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id}>
-                {hg.headers.map((h) => {
-                  const isNum = numericCols.has(h.column.id);
-                  const sorted = h.column.getIsSorted();
-                  return (
-                    <th
-                      key={h.id}
-                      className={isNum ? "num" : ""}
-                      onClick={h.column.getToggleSortingHandler()}
-                    >
-                      {flexRender(h.column.columnDef.header, h.getContext())}
-                      {sorted === "asc" ? " ▲" : sorted === "desc" ? " ▼" : ""}
-                    </th>
-                  );
-                })}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => {
-              const rank = row.getValue("rank") as number;
-              return (
-                <tr key={row.id}>
-                  {row.getVisibleCells().map((cell) => {
-                    const id = cell.column.id;
-                    const isNum = numericCols.has(id);
-                    let cls = isNum ? "num" : "";
-                    if (id === "rank") cls = `rank ${rank <= 3 ? `top${rank}` : ""}`;
-                    if (id === "display_id") cls = "player";
-                    if (id === "value") cls = "num val";
-                    if (id === "games") cls = "num games";
+        <div className="board-wrap">
+          <table className="board">
+            <thead>
+              {table.getHeaderGroups().map((hg) => (
+                <tr key={hg.id}>
+                  {hg.headers.map((h) => {
+                    const isNum = numericCols.has(h.column.id);
+                    const sorted = h.column.getIsSorted();
                     return (
-                      <td key={cell.id} className={cls}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
+                      <th
+                        key={h.id}
+                        className={isNum ? "num" : ""}
+                        onClick={h.column.getToggleSortingHandler()}
+                      >
+                        {flexRender(h.column.columnDef.header, h.getContext())}
+                        {sorted === "asc" ? " ▲" : sorted === "desc" ? " ▼" : ""}
+                      </th>
                     );
                   })}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => {
+                const rank = row.getValue("rank") as number;
+                return (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map((cell) => {
+                      const id = cell.column.id;
+                      let cls = numericCols.has(id) ? "num" : "";
+                      if (id === "rank") cls = `rank ${rank <= 3 ? `top${rank}` : ""}`;
+                      if (id === "display_id") cls = "player";
+                      if (id === "value") cls = "num val";
+                      if (id === "games") cls = "num games";
+                      return (
+                        <td key={cell.id} className={cls}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   );

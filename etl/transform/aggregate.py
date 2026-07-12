@@ -6,6 +6,7 @@ ratios por juego. Se usa MAX(deaths,1) en el denominador para el caso deaths=0.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sqlite3
@@ -13,6 +14,25 @@ import sqlite3
 from etl import config
 
 ROLES = ["Top", "Jungle", "Mid", "Bot", "Support"]
+
+# --- URLs de imágenes del CDN de Fandom (sin bloqueo de UA; construidas por MD5) ---
+_CDN = "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images"
+
+
+def cdn_image(filename):
+    """URL directa a una imagen de Leaguepedia dado su nombre de archivo."""
+    if not filename:
+        return None
+    fn = str(filename).replace(" ", "_")
+    h = hashlib.md5(fn.encode("utf-8")).hexdigest()
+    return f"{_CDN}/{h[0]}/{h[:2]}/{fn}"
+
+
+def team_logo(team):
+    """URL del logo cuadrado de un equipo (Leaguepedia usa '<Team>logo square.png')."""
+    if not team:
+        return None
+    return cdn_image(f"{team}logo square.png")
 
 
 # ---------------------------------------------------------------------------
@@ -91,10 +111,13 @@ def compute_player_champions(conn: sqlite3.Connection) -> None:
 
 
 def compute_player_titles(conn: sqlite3.Connection) -> None:
+    conn.create_function("team_logo", 1, team_logo)
     conn.execute("DELETE FROM player_titles")
     conn.execute("""
-        INSERT OR IGNORE INTO player_titles (player_id, overview_page, event, league, year)
-        SELECT DISTINCT TP.Link, T.OverviewPage, T.Name, T.League, T.Year
+        INSERT OR IGNORE INTO player_titles
+            (player_id, overview_page, event, league, year, team, team_logo_url)
+        SELECT DISTINCT TP.Link, T.OverviewPage, T.Name, T.League, T.Year,
+               TR.Team, team_logo(TR.Team)
         FROM tournament_results TR
         JOIN tournaments T ON T.OverviewPage = TR.OverviewPage
         JOIN tournament_players TP ON TP.PageAndTeam = TR.PageAndTeam
@@ -194,12 +217,13 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
                         r["country"], r["team"], r["is_retired"], r["games"], r["wins"],
                         r["kda"], r["win_rate"], r["intl_titles"], r["worlds_titles"],
                         r["msi_titles"], r["worlds_appearances"], r["intl_games"],
-                        r["kda_intl"], score, json.dumps(breakdown), r["image_filename"]))
+                        r["kda_intl"], score, json.dumps(breakdown), r["image_filename"],
+                        cdn_image(r["image_filename"]), team_logo(r["team"])))
     conn.executemany("""INSERT INTO player_index
         (player_id, display_id, slug, name, role, country, team, is_retired, games,
          wins, kda, win_rate, intl_titles, worlds_titles, msi_titles, worlds_appearances,
-         intl_games, kda_intl, score, score_breakdown, image_filename)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
+         intl_games, kda_intl, score, score_breakdown, image_filename, image_url, team_logo_url)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
     conn.commit()
 
 

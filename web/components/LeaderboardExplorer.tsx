@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-table";
 import type { LeaderboardRow } from "@/lib/db";
 import { formatValue, scopeLabel, ROLES, type StatDef } from "@/lib/stats";
+import { roleIcon } from "@/lib/icons";
 
 const col = createColumnHelper<LeaderboardRow>();
 
@@ -99,16 +100,25 @@ export default function LeaderboardExplorer({
 
       {def?.roleScoped && (
         <div className="controls roles">
-          {["all", ...ROLES.map((r) => `role:${r}`)].map((sc) => (
-            <button
-              key={sc}
-              className="chip role-chip"
-              data-active={sc === scope}
-              onClick={() => setScope(sc)}
-            >
-              {scopeLabel(sc)}
-            </button>
-          ))}
+          {["all", ...ROLES.map((r) => `role:${r}`)].map((sc) => {
+            const icon = sc === "all" ? null : roleIcon(sc.replace("role:", ""));
+            return (
+              <button
+                key={sc}
+                className="chip role-chip"
+                data-active={sc === scope}
+                onClick={() => setScope(sc)}
+              >
+                {icon && (
+                  <span
+                    className="ic role sm"
+                    style={{ backgroundImage: `url(${icon})` }}
+                  />
+                )}
+                {scopeLabel(sc)}
+              </button>
+            );
+          })}
         </div>
       )}
 

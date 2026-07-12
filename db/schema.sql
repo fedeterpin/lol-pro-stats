@@ -209,7 +209,9 @@ CREATE TABLE IF NOT EXISTS player_index (
     kda_intl      REAL,
     score         INTEGER,     -- Legacy Score (ver aggregate._legacy_score)
     score_breakdown TEXT,      -- JSON con el desglose de puntos
-    image_filename TEXT        -- foto de perfil (Leaguepedia Players.Image)
+    image_filename TEXT,       -- foto de perfil (Leaguepedia Players.Image)
+    image_url     TEXT,        -- URL CDN de la foto (construida por MD5)
+    team_logo_url TEXT         -- URL CDN del logo del equipo actual
 );
 CREATE INDEX IF NOT EXISTS idx_pidx_slug  ON player_index(slug);
 CREATE INDEX IF NOT EXISTS idx_pidx_games ON player_index(games);
@@ -235,6 +237,8 @@ CREATE TABLE IF NOT EXISTS player_titles (
     event         TEXT,
     league        TEXT,
     year          TEXT,
+    team          TEXT,          -- equipo con el que ganó
+    team_logo_url TEXT,          -- URL CDN del logo del equipo
     PRIMARY KEY (player_id, overview_page)
 );
 CREATE INDEX IF NOT EXISTS idx_ptitles_player ON player_titles(player_id);

@@ -9,7 +9,7 @@ import {
   listPlayers,
 } from "@/lib/db";
 import { championSquare } from "@/lib/champion";
-import { playerPhoto } from "@/lib/player";
+import { roleIcon, countryFlag } from "@/lib/icons";
 import { STAT_BY_KEY, formatValue, scopeLabel } from "@/lib/stats";
 
 export function generateStaticParams() {
@@ -47,13 +47,6 @@ export default async function PlayerPage({
     .sort((a, b) => a.rank - b.rank)
     .slice(0, 8);
 
-  const meta = [
-    player.role,
-    player.team,
-    player.country,
-    player.is_retired ? "Retired" : null,
-  ].filter(Boolean);
-
   const tiles = [
     { label: "Games", value: player.games.toLocaleString("en") },
     { label: "Career KDA", value: player.kda.toFixed(2), accent: true },
@@ -69,10 +62,10 @@ export default async function PlayerPage({
       </Link>
 
       <header className="player-head">
-        {playerPhoto(player.image_filename) && (
+        {player.image_url && (
           <span
             className="portrait"
-            style={{ backgroundImage: `url(${playerPhoto(player.image_filename)})` }}
+            style={{ backgroundImage: `url(${player.image_url})` }}
             aria-hidden="true"
           />
         )}
@@ -81,13 +74,40 @@ export default async function PlayerPage({
           {player.name && player.name !== player.display_id && (
             <p className="player-real">{player.name}</p>
           )}
-          {meta.length > 0 && (
-            <p className="player-meta">
-              {meta.map((m, i) => (
-                <span key={i}>{m}</span>
-              ))}
-            </p>
-          )}
+          <p className="player-meta">
+            {player.role && roleIcon(player.role) && (
+              <span className="pm-item" title={player.role}>
+                <span
+                  className="ic role"
+                  style={{ backgroundImage: `url(${roleIcon(player.role)})` }}
+                />
+                {player.role}
+              </span>
+            )}
+            {player.team && (
+              <span className="pm-item">
+                {player.team_logo_url && (
+                  <span
+                    className="ic team"
+                    style={{ backgroundImage: `url(${player.team_logo_url})` }}
+                  />
+                )}
+                {player.team}
+              </span>
+            )}
+            {player.country && (
+              <span className="pm-item">
+                {countryFlag(player.country) && (
+                  <span
+                    className="ic flag"
+                    style={{ backgroundImage: `url(${countryFlag(player.country)})` }}
+                  />
+                )}
+                {player.country}
+              </span>
+            )}
+            {player.is_retired ? <span className="pm-item retired">Retired</span> : null}
+          </p>
         </div>
       </header>
 
@@ -168,9 +188,20 @@ export default async function PlayerPage({
           <div className="trophy-grid">
             {titles.map((t) => (
               <div className="trophy" key={t.overview_page}>
-                <span className="trophy-year">{t.year}</span>
-                <span className="trophy-event">{t.event}</span>
-                <span className="trophy-league">{t.league}</span>
+                {t.team_logo_url && (
+                  <span
+                    className="trophy-logo"
+                    style={{ backgroundImage: `url(${t.team_logo_url})` }}
+                    aria-hidden="true"
+                  />
+                )}
+                <div className="trophy-info">
+                  <span className="trophy-year">
+                    {t.year} · {t.league}
+                  </span>
+                  <span className="trophy-event">{t.event}</span>
+                  {t.team && <span className="trophy-team">{t.team}</span>}
+                </div>
               </div>
             ))}
           </div>

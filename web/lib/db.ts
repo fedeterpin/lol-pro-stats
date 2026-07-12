@@ -93,6 +93,8 @@ export interface PlayerRow {
   score: number;
   score_breakdown: string | null;
   image_filename: string | null;
+  image_url: string | null;
+  team_logo_url: string | null;
 }
 
 export function listPlayers(limit = 2000): PlayerRow[] {
@@ -159,6 +161,8 @@ export interface TitleRow {
   event: string;
   league: string;
   year: string;
+  team: string | null;
+  team_logo_url: string | null;
 }
 
 export function getPlayerTitles(playerId: string): TitleRow[] {
@@ -166,8 +170,8 @@ export function getPlayerTitles(playerId: string): TitleRow[] {
     (db) =>
       db
         .prepare(
-          `SELECT overview_page, event, league, year FROM player_titles
-           WHERE player_id = ? ORDER BY year DESC, league`,
+          `SELECT overview_page, event, league, year, team, team_logo_url
+           FROM player_titles WHERE player_id = ? ORDER BY year DESC, league`,
         )
         .all(playerId) as TitleRow[],
     [],

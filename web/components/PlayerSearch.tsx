@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { PlayerRow } from "@/lib/db";
-import { playerPhoto } from "@/lib/player";
+import { roleIcon } from "@/lib/icons";
 
 export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
   const [q, setQ] = useState("");
@@ -37,13 +37,11 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
               <span
                 className="avatar"
                 style={
-                  playerPhoto(p.image_filename)
-                    ? { backgroundImage: `url(${playerPhoto(p.image_filename)})` }
-                    : undefined
+                  p.image_url ? { backgroundImage: `url(${p.image_url})` } : undefined
                 }
                 aria-hidden="true"
               >
-                {!p.image_filename && (p.display_id?.[0] ?? "?")}
+                {!p.image_url && (p.display_id?.[0] ?? "?")}
               </span>
               <div className="pcard-id">
                 <div className="pcard-top">
@@ -55,6 +53,12 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
                   )}
                 </div>
                 <div className="pcard-meta">
+                  {p.role && roleIcon(p.role) && (
+                    <span
+                      className="ic role sm"
+                      style={{ backgroundImage: `url(${roleIcon(p.role)})` }}
+                    />
+                  )}
                   {[p.role, p.team].filter(Boolean).join(" · ") || "—"}
                 </div>
               </div>

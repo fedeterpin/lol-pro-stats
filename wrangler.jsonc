@@ -1,0 +1,10 @@
+{
+  // Deploy del sitio estático (Next.js output:export -> web/out) como Worker de assets.
+  // Cloudflare Workers Builds: Build command = `cd web && npm ci && npm run build`.
+  "name": "lol-pro-stats",
+  "compatibility_date": "2024-11-01",
+  "assets": {
+    "directory": "./web/out",
+    "not_found_handling": "404-page"
+  }
+}

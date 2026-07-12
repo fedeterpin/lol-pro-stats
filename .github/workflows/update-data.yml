@@ -1,7 +1,8 @@
 name: Update data (ETL)
 
 # Corre el ETL de internacionales, regenera data/web.sqlite y la commitea.
-# El commit dispara deploy.yml. Manual (o cron) — tarda ~40-50 min por el rate limit.
+# El commit (push) dispara el rebuild automático de Cloudflare (Workers Builds).
+# Manual (o cron) — tarda ~40-50 min por el rate limit.
 # Requiere secrets: LEAGUEPEDIA_USERNAME, LEAGUEPEDIA_PASSWORD (bot password de Leaguepedia).
 on:
   workflow_dispatch:

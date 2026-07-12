@@ -1,0 +1,10 @@
+# ETL de LoL Pro Stats — extracción desde Leaguepedia (Cargo) y Oracle's Elixir.
+# Cliente oficial de Leaguepedia (auto-paginación limit='max', sin login para lecturas).
+mwcleric>=0.10,<0.11
+mwrogue>=0.1.5
+# Validación de esquemas de filas.
+pydantic>=2.6
+# HTTP para Oracle's Elixir (descarga de CSVs) y utilidades.
+httpx>=0.27
+# Manejo de CSVs grandes de Oracle's Elixir (Fase 2).
+polars>=0.20

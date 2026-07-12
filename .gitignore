@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# ETL data artifacts
+data/raw/
+data/*.sqlite
+data/*.sqlite-*
+etl/state/watermarks.json
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/.vercel/
+web/.wrangler/
+*.tsbuildinfo
+
+# Secrets / env
+.env
+.env.local
+*.local
+
+# OS / editor
+.DS_Store
+*.swp

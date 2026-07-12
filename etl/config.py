@@ -5,6 +5,7 @@ así el loader inserta los row-dicts sin mapeo. Ver db/schema.sql.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +16,33 @@ RAW_DIR = DATA_DIR / "raw"
 DB_PATH = DATA_DIR / "site.sqlite"
 SCHEMA_PATH = ROOT / "db" / "schema.sql"
 STATE_PATH = ROOT / "etl" / "state" / "watermarks.json"
+
+
+# --- Carga de .env (sin dependencias) ------------------------------------
+def load_dotenv(path: Path = ROOT / ".env") -> list[str]:
+    """Puebla os.environ desde un .env en la raíz. Tolera 'export', comillas,
+    comentarios y CRLF. No pisa variables ya definidas. Devuelve las claves cargadas."""
+    loaded: list[str] = []
+    if not path.exists():
+        return loaded
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip().lstrip("﻿")
+        if not line or line.startswith("#"):
+            continue
+        if line.lower().startswith("export "):
+            line = line[len("export "):].strip()
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip().strip('"').strip("'")
+        if key:
+            os.environ.setdefault(key, val)
+            loaded.append(key)
+    return loaded
+
+
+load_dotenv()
 
 # --- API / cliente -------------------------------------------------------
 WIKI = "lol"

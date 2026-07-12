@@ -33,6 +33,7 @@ class CargoSource:
         self._last_request_ts = 0.0
         self._client: EsportsClient | None = None
         self._authed = False
+        self._has_apihighlimits = False
 
     # -- conexión (lazy) --------------------------------------------------
     @property
@@ -49,16 +50,27 @@ class CargoSource:
             creds = AuthCredentials(username=user, password=pwd)
             self._authed = True
         # clients_useragent y max_lag fluyen por **kwargs hasta mwclient.Site.
-        return EsportsClient(
+        client = EsportsClient(
             self.wiki,
             credentials=creds,
             clients_useragent=config.USER_AGENT,
             max_lag=config.MAX_LAG,
         )
+        # El tope real de cargoquery depende de apihighlimits (500 sin, 5000 con).
+        # Lo detectamos de los rights de la sesión para elegir el page_size correcto
+        # (evita el warning "must be between 1 and 500" y una query vacía extra).
+        try:
+            info = client.cargo_client.client.api(
+                "query", meta="userinfo", uiprop="rights", format="json")
+            rights = info.get("query", {}).get("userinfo", {}).get("rights", [])
+            self._has_apihighlimits = "apihighlimits" in rights
+        except Exception:
+            self._has_apihighlimits = False
+        return client
 
     @property
     def page_size(self) -> int:
-        return config.PAGE_SIZE_BOT if self._authed else config.PAGE_SIZE_ANON
+        return config.PAGE_SIZE_BOT if self._has_apihighlimits else config.PAGE_SIZE_ANON
 
     # -- throttle / backoff ----------------------------------------------
     def _throttle(self) -> None:
@@ -95,6 +107,8 @@ class CargoSource:
         """Query paginada completa (todas las páginas)."""
         if not isinstance(fields, str):
             fields = ", ".join(fields)
+        # page_size ya es el tope real del server (500 sin apihighlimits, 5000 con) ->
+        # un page más corto que ps es el último. Avanzamos por len(page) por robustez.
         ps = self.page_size
         rows: list[dict] = []
         offset = 0
@@ -102,10 +116,12 @@ class CargoSource:
             page = self._query_page(tables=tables, fields=fields, where=where,
                                     join_on=join_on, group_by=group_by,
                                     order_by=order_by, limit=ps, offset=offset)
+            if not page:
+                break
             rows.extend(page)
             if len(page) < ps:
                 break
-            offset += ps
+            offset += len(page)
         return rows
 
     def extract_table(self, spec: config.TableSpec, where: str | None = None,

@@ -24,7 +24,7 @@ from pathlib import Path
 
 from etl import config, db
 from etl.clients.cargo import CargoSource, cargo_escape
-from etl.extract.tournament import extract_tournament, fetch_players_for_links, _distinct_links
+from etl.extract.tournament import extract_tournament
 from etl.transform import aggregate
 
 
@@ -92,24 +92,36 @@ def extract_scoreboards_by_year(src: CargoSource, conn: sqlite3.Connection, year
         print(f"  · {name:20s} {n:6d} filas ({year})")
 
 
+def _sweep(src: CargoSource, conn: sqlite3.Connection, name: str, where: str | None = None,
+           resume: bool = True) -> None:
+    """Barrido completo de una tabla (mucho más eficiente que iterar por torneo)."""
+    if resume and _is_loaded(conn, f"sweep:{name}"):
+        print(f"  SKIP sweep {name}")
+        return
+    spec = config.TABLES[name]
+    rows = src.extract_table(spec, where=where, store_key=f"sweep_{name}")
+    n = db.upsert_rows(conn, spec, rows)
+    db.set_meta(conn, f"sweep:{name}", "1")
+    print(f"  · {name:20s} {n:6d} filas (sweep)")
+
+
 def run_full(src: CargoSource, conn: sqlite3.Connection, year_from: int, year_to: int) -> None:
-    print("[full] descubriendo torneos…")
-    ops = [r["OverviewPage"] for r in discover_tournaments(src, year_from=year_from)]
-    print(f"  {len(ops)} torneos")
-    # tournaments + results + players por torneo (sin scoreboards ni dims acá)
-    from etl.extract.tournament import SCOPED_TABLES
-    scoped = [t for t in SCOPED_TABLES if t not in ("scoreboard_games", "scoreboard_players")]
-    for i, op in enumerate(ops, 1):
-        if _is_loaded(conn, f"meta:{op}"):
-            continue
-        op_where = f'OverviewPage="{cargo_escape(op)}"'
-        for name in scoped:
-            spec = config.TABLES[name]
-            rows = src.extract_table(spec, where=op_where, store_key=op)
-            db.upsert_rows(conn, spec, rows)
-        db.set_meta(conn, f"meta:{op}", "1")
-        if i % 25 == 0:
-            print(f"  meta {i}/{len(ops)}")
+    """Backfill histórico completo con barridos en bloque + scoreboards por año.
+
+    Muchísimas menos queries que iterar por torneo: dims/resultados en 5 barridos
+    paginados, y las 2 tablas grandes (scoreboards) troceadas por año. Todo con
+    checkpoints reanudables (sweep:<t>, year:<y>)."""
+    print(f"[full] dimensiones + resultados (barrido completo)…")
+    # Tournaments es chico (~miles de filas): barrido completo sin filtrar por año,
+    # así todos los torneos quedan con su tier (evita que el checkpoint deje años
+    # viejos sin clasificar si se corre primero un rango parcial). year_from solo
+    # acota los scoreboards (las tablas grandes).
+    _sweep(src, conn, "tournaments")
+    _sweep(src, conn, "tournament_results")
+    _sweep(src, conn, "tournament_players")
+    _sweep(src, conn, "players")
+    _sweep(src, conn, "player_redirects")
+
     print("[full] scoreboards por año…")
     for year in range(year_from, year_to + 1):
         if _is_loaded(conn, f"year:{year}"):
@@ -117,9 +129,6 @@ def run_full(src: CargoSource, conn: sqlite3.Connection, year_from: int, year_to
             continue
         extract_scoreboards_by_year(src, conn, year)
         db.set_meta(conn, f"year:{year}", "1")
-    print("[full] dims de jugadores…")
-    links = _distinct_links(conn)
-    fetch_players_for_links(src, conn, links, store_key="full", skip_existing=True)
 
 
 # ---------------------------------------------------------------------------

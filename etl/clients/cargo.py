@@ -29,11 +29,13 @@ class CargoSource:
                  min_interval: float = config.MIN_REQUEST_INTERVAL):
         self.wiki = wiki
         self.raw_dir = raw_dir or config.RAW_DIR
-        self.min_interval = min_interval
+        self.min_interval = min_interval      # piso del intervalo adaptativo
+        self._interval = min_interval         # intervalo actual (AIMD)
         self._last_request_ts = 0.0
         self._client: EsportsClient | None = None
         self._authed = False
         self._has_apihighlimits = False
+        self._no_ratelimit = False
 
     # -- conexión (lazy) --------------------------------------------------
     @property
@@ -49,11 +51,12 @@ class CargoSource:
         if user and pwd:
             creds = AuthCredentials(username=user, password=pwd)
             self._authed = True
-        # clients_useragent y max_lag fluyen por **kwargs hasta mwclient.Site.
+        # El fork de mwcleric expone `user_agent` (lo mapea a clients_useragent
+        # internamente); max_lag fluye por **kwargs hasta mwclient.Site.
         client = EsportsClient(
             self.wiki,
             credentials=creds,
-            clients_useragent=config.USER_AGENT,
+            user_agent=config.USER_AGENT,
             max_lag=config.MAX_LAG,
         )
         # El tope real de cargoquery depende de apihighlimits (500 sin, 5000 con).
@@ -64,6 +67,9 @@ class CargoSource:
                 "query", meta="userinfo", uiprop="rights", format="json")
             rights = info.get("query", {}).get("userinfo", {}).get("rights", [])
             self._has_apihighlimits = "apihighlimits" in rights
+            self._no_ratelimit = "noratelimit" in rights
+            if self._no_ratelimit:      # grupo bot: sin throttle
+                self._interval = 0.0
         except Exception:
             self._has_apihighlimits = False
         return client
@@ -72,12 +78,24 @@ class CargoSource:
     def page_size(self) -> int:
         return config.PAGE_SIZE_BOT if self._has_apihighlimits else config.PAGE_SIZE_ANON
 
-    # -- throttle / backoff ----------------------------------------------
+    # -- throttle / backoff adaptativo (AIMD) ----------------------------
     def _throttle(self) -> None:
+        if self._interval <= 0:            # noratelimit: sin throttle
+            return
         elapsed = time.monotonic() - self._last_request_ts
-        if elapsed < self.min_interval:
-            time.sleep(self.min_interval - elapsed)
+        if elapsed < self._interval:
+            time.sleep(self._interval - elapsed)
         self._last_request_ts = time.monotonic()
+
+    def _decay_interval(self) -> None:
+        """Éxito: bajar despacio el intervalo hacia el piso (additive-ish / multiplicative)."""
+        if not self._no_ratelimit and self._interval > self.min_interval:
+            self._interval = max(self.min_interval, self._interval * 0.9)
+
+    def _grow_interval(self) -> None:
+        """Rate-limit: subir agresivo el intervalo (hasta el techo)."""
+        if not self._no_ratelimit:
+            self._interval = min(config.MAX_INTERVAL, max(self._interval, 2.0) * 1.5)
 
     def _query_page(self, *, tables, fields, where=None, join_on=None,
                     group_by=None, order_by=None, limit=None, offset=0) -> list[dict]:
@@ -85,18 +103,22 @@ class CargoSource:
         for attempt in range(config.MAX_RETRIES):
             self._throttle()
             try:
-                return self.client.cargo_client.query(
+                res = self.client.cargo_client.query(
                     tables=tables, fields=fields, where=where, join_on=join_on,
                     group_by=group_by, order_by=order_by, limit=limit, offset=offset,
                 )
+                self._decay_interval()
+                return res
             except APIError as e:
                 code = getattr(e, "code", "")
                 if code not in RETRYABLE_CODES:
                     raise
                 last_err = e
-                wait = config.BACKOFF_BASE * (2 ** attempt)
-                print(f"    [cargo] {code}; backoff {wait:.0f}s "
-                      f"(intento {attempt + 1}/{config.MAX_RETRIES})")
+                self._grow_interval()
+                # Esperar QUIETO (sin reintentos ansiosos que extienden el castigo).
+                wait = min(90.0, config.RATELIMIT_COOLDOWN * (attempt + 1))
+                print(f"    [cargo] {code}; intervalo->{self._interval:.0f}s; "
+                      f"espera quieta {wait:.0f}s ({attempt + 1}/{config.MAX_RETRIES})")
                 time.sleep(wait)
         raise RuntimeError(f"Cargo query agotó reintentos: {last_err}")
 

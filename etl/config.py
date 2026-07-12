@@ -51,9 +51,15 @@ USER_AGENT = "lol-pro-stats/0.1 (https://github.com/; contact: federicoterpin@gm
 # Cap por página: 500 anónimo, 5000 con cuenta de bot logueada.
 PAGE_SIZE_ANON = 500
 PAGE_SIZE_BOT = 5000
-MIN_REQUEST_INTERVAL = 1.0   # segundos entre requests (serializar)
-MAX_RETRIES = 6              # reintentos ante 'ratelimited'/'maxlag'
-BACKOFF_BASE = 5.0           # segundos; backoff exponencial base*2**intento
+# Throttle ADAPTATIVO (AIMD). Leaguepedia usa un token-bucket (~4-5) que se rellena
+# lento, y golpearlo mientras estás limitado EXTIENDE el castigo. Por eso: partir de
+# un intervalo conservador, subirlo agresivo ante rate-limit y bajarlo despacio en éxito,
+# y ante rate-limit esperar QUIETO (sin reintentos ansiosos). Con 'noratelimit' (grupo
+# bot) el intervalo va a 0.
+MIN_REQUEST_INTERVAL = 4.0   # piso del intervalo adaptativo (cuenta sin noratelimit)
+MAX_INTERVAL = 30.0          # techo del intervalo adaptativo
+MAX_RETRIES = 10             # paciente: no abandonar el backfill por rate-limit
+RATELIMIT_COOLDOWN = 25.0    # espera quieta base ante 'ratelimited' (crece por intento)
 MAX_LAG = 5                  # honrar maxlag del servidor
 
 # --- Tiers ---------------------------------------------------------------
@@ -82,9 +88,12 @@ def classify_tier(league, region, is_playoffs, is_qualifier=None, tournament_lev
     league = (league or "").strip()
     region = (region or "").strip()
     low = league.lower()
-    if league in PREMIER_LEAGUES:
+    is_intl = region == INTERNATIONAL_REGION
+    # OJO: los qualifiers/regional finals de Worlds llevan League='World Championship'
+    # pero Region regional (Europe/Korea/...) -> NO son intl_premier. Exigir ambos.
+    if is_intl and league in PREMIER_LEAGUES:
         return "intl_premier"
-    if region == INTERNATIONAL_REGION:
+    if is_intl:
         if any(sub in low for sub in EXHIBITION_SUBSTRINGS):
             return "exhibition"
         return "intl_legacy"

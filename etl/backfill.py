@@ -81,15 +81,18 @@ def backfill_tournaments(src: CargoSource, conn: sqlite3.Connection, ops: list[s
 
 
 # ---------------------------------------------------------------------------
-def extract_scoreboards_by_year(src: CargoSource, conn: sqlite3.Connection, year: int) -> None:
-    """Modo eficiente para el full run: scoreboards de un año en un barrido paginado."""
-    where = (f'DateTime_UTC >= "{year}-01-01 00:00:00" AND '
-             f'DateTime_UTC < "{year + 1}-01-01 00:00:00"')
+def extract_scoreboards_by_month(src: CargoSource, conn: sqlite3.Connection,
+                                 year: int, month: int) -> tuple[int, int]:
+    """Scoreboards de un mes (acota memoria vs un año entero de todas las regiones)."""
+    start = f"{year}-{month:02d}-01 00:00:00"
+    end = f"{year + 1}-01-01 00:00:00" if month == 12 else f"{year}-{month + 1:02d}-01 00:00:00"
+    where = f'DateTime_UTC >= "{start}" AND DateTime_UTC < "{end}"'
+    counts = []
     for name in ["scoreboard_games", "scoreboard_players"]:
         spec = config.TABLES[name]
-        rows = src.extract_table(spec, where=where, store_key=f"year_{year}")
-        n = db.upsert_rows(conn, spec, rows)
-        print(f"  · {name:20s} {n:6d} filas ({year})")
+        rows = src.extract_table(spec, where=where, store_key=f"{year}-{month:02d}")
+        counts.append(db.upsert_rows(conn, spec, rows))
+    return tuple(counts)
 
 
 def _sweep(src: CargoSource, conn: sqlite3.Connection, name: str, where: str | None = None,
@@ -122,13 +125,18 @@ def run_full(src: CargoSource, conn: sqlite3.Connection, year_from: int, year_to
     _sweep(src, conn, "players")
     _sweep(src, conn, "player_redirects")
 
-    print("[full] scoreboards por año…")
+    print("[full] scoreboards por mes…")
     for year in range(year_from, year_to + 1):
-        if _is_loaded(conn, f"year:{year}"):
-            print(f"  SKIP año {year}")
-            continue
-        extract_scoreboards_by_year(src, conn, year)
-        db.set_meta(conn, f"year:{year}", "1")
+        year_games = year_players = 0
+        for month in range(1, 13):
+            key = f"month:{year}-{month:02d}"
+            if _is_loaded(conn, key):
+                continue
+            g, p = extract_scoreboards_by_month(src, conn, year, month)
+            year_games += g
+            year_players += p
+            db.set_meta(conn, key, "1")
+        print(f"  · {year}: {year_games:6d} games, {year_players:7d} player-rows")
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +173,7 @@ def main() -> None:
             year_from=args.year_from, official_only=args.official_only)
         print(f"[discover] {len(ops_rows)} torneos")
         for r in ops_rows[:30]:
-            print(f"  - {r.get('Year'):>4} | {r.get('League'):24s} | {r['OverviewPage']}")
+            print(f"  - {(r.get('Year') or '?'):>4} | {(r.get('League') or '?'):24s} | {r['OverviewPage']}")
         if len(ops_rows) > 30:
             print(f"  … (+{len(ops_rows) - 30} más)")
         if args.discover_only:

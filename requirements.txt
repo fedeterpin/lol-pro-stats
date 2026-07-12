@@ -1,6 +1,7 @@
 # ETL de LoL Pro Stats — extracción desde Leaguepedia (Cargo) y Oracle's Elixir.
-# Cliente oficial de Leaguepedia (auto-paginación limit='max', sin login para lecturas).
-mwcleric>=0.10,<0.11
+# Fork de mwcleric recomendado por Leaguepedia: reintenta ante los nuevos rate-limits
+# de Cargo (ver Help:Leaguepedia_API). Requiere login con bot password + email confirmado.
+mwcleric @ git+https://github.com/arbolitoloco1/mwcleric@empty_string_fix
 mwrogue>=0.1.5
 # Validación de esquemas de filas.
 pydantic>=2.6

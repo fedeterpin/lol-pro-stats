@@ -72,6 +72,19 @@ npx serve out      # o `npm run dev` para desarrollo
 - Identidad de jugador: agregar por `ScoreboardPlayers.Link` (canónico); resolver
   nombres tipeados vía `PlayerRedirects.AllName -> OverviewPage`.
 
+## Referencias
+
+- [Help:Leaguepedia API](https://lol.fandom.com/wiki/Help:Leaguepedia_API) — rate-limits, bot password, paquetes Python
+- [Help:ACS archive](https://lol.fandom.com/wiki/Help:ACS_archive) — archivo ACS/JSON de partidas
+- mwcleric: [repo](https://github.com/RheingoldRiver/mwcleric) · [docs](https://mwcleric.readthedocs.io/) — usamos el fork `arbolitoloco1/mwcleric@empty_string_fix`
+- mwrogue: [repo](https://github.com/RheingoldRiver/mwrogue) · [docs](https://mwrogue.readthedocs.io/)
+- [MediaWiki API](https://www.mediawiki.org/wiki/API:Main_page)
+
+> **Rate limits (Cargo).** Fandom limita fuerte cargoquery para cuentas sin el grupo
+> `bot`: token-bucket de ~5, refill ~1/4s; golpearlo mientras estás limitado extiende
+> el castigo. El cliente usa throttle adaptativo (AIMD) + esperas quietas. Para
+> full-speed (sin límite) hace falta el flag `bot` de Leaguepedia (se pide a River).
+
 ## Créditos y licencia de datos
 
 - **Leaguepedia** (lol.fandom.com) — datos bajo **CC BY-SA 4.0**.

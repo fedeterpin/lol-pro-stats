@@ -1,0 +1,45 @@
+name: Update data (ETL)
+
+# Corre el ETL de internacionales, regenera data/web.sqlite y la commitea.
+# El commit dispara deploy.yml. Manual (o cron) — tarda ~40-50 min por el rate limit.
+# Requiere secrets: LEAGUEPEDIA_USERNAME, LEAGUEPEDIA_PASSWORD (bot password de Leaguepedia).
+on:
+  workflow_dispatch:
+  # schedule:            # opcional: descomentar para refresco periódico
+  #   - cron: "0 6 * * 1"  # lunes 06:00 UTC
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      LEAGUEPEDIA_USERNAME: ${{ secrets.LEAGUEPEDIA_USERNAME }}
+      LEAGUEPEDIA_PASSWORD: ${{ secrets.LEAGUEPEDIA_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Backfill internationals (+ resume via checkpoints)
+        run: python -m etl.backfill --leagues "World Championship,Mid-Season Invitational,First Stand"
+
+      - name: Fetch player photos
+        run: python -m etl.fetch_images
+
+      - name: Build slim web DB
+        run: python -m etl.build_web_db
+
+      - name: Commit web.sqlite if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f data/web.sqlite
+          git diff --cached --quiet || git commit -m "chore(data): refresh web.sqlite [skip ci]"
+          git push

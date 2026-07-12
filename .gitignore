@@ -9,6 +9,8 @@ __pycache__/
 data/raw/
 data/*.sqlite
 data/*.sqlite-*
+# DB slim (solo gold) commiteada para el build de la web:
+!data/web.sqlite
 etl/state/watermarks.json
 
 # Node / Next.js

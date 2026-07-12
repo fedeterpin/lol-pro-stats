@@ -6,7 +6,7 @@ import fs from "node:fs";
 
 const DB_PATH =
   process.env.SITE_DB_PATH ??
-  path.join(process.cwd(), "..", "data", "site.sqlite");
+  path.join(process.cwd(), "..", "data", "web.sqlite");
 
 function withDb<T>(fn: (db: Database.Database) => T, fallback: T): T {
   if (!fs.existsSync(DB_PATH)) return fallback;

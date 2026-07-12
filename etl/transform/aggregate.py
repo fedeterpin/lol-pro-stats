@@ -110,13 +110,20 @@ def compute_player_champions(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _first_year(text):
+    m = re.search(r"(20\d{2})", str(text or ""))
+    return m.group(1) if m else None
+
+
 def compute_player_titles(conn: sqlite3.Connection) -> None:
     conn.create_function("team_logo", 1, team_logo)
+    conn.create_function("first_year", 1, _first_year)
     conn.execute("DELETE FROM player_titles")
     conn.execute("""
         INSERT OR IGNORE INTO player_titles
             (player_id, overview_page, event, league, year, team, team_logo_url)
-        SELECT DISTINCT TP.Link, T.OverviewPage, T.Name, T.League, T.Year,
+        SELECT DISTINCT TP.Link, T.OverviewPage, T.Name, T.League,
+               COALESCE(NULLIF(T.Year, ''), first_year(T.Name), first_year(T.OverviewPage)),
                TR.Team, team_logo(TR.Team)
         FROM tournament_results TR
         JOIN tournaments T ON T.OverviewPage = TR.OverviewPage

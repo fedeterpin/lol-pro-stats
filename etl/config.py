@@ -56,7 +56,7 @@ PAGE_SIZE_BOT = 5000
 # un intervalo conservador, subirlo agresivo ante rate-limit y bajarlo despacio en éxito,
 # y ante rate-limit esperar QUIETO (sin reintentos ansiosos). Con 'noratelimit' (grupo
 # bot) el intervalo va a 0.
-MIN_REQUEST_INTERVAL = 4.0   # piso del intervalo adaptativo (cuenta sin noratelimit)
+MIN_REQUEST_INTERVAL = 5.0   # piso del intervalo adaptativo (cuenta sin noratelimit)
 MAX_INTERVAL = 30.0          # techo del intervalo adaptativo
 MAX_RETRIES = 10             # paciente: no abandonar el backfill por rate-limit
 RATELIMIT_COOLDOWN = 25.0    # espera quieta base ante 'ratelimited' (crece por intento)

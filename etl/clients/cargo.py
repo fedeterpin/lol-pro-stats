@@ -99,16 +99,30 @@ class CargoSource:
 
     def _query_page(self, *, tables, fields, where=None, join_on=None,
                     group_by=None, order_by=None, limit=None, offset=0) -> list[dict]:
+        # Llamada CRUDA a cargoquery: evita el retry recursivo/rápido del fork de
+        # mwcleric (martilla el rate-limit y extiende el castigo). Nuestro backoff
+        # adaptativo y paciente maneja 'ratelimited'.
+        data = {"tables": tables, "fields": fields, "format": "json"}
+        if join_on:
+            data["join_on"] = join_on
+        if where:
+            data["where"] = where
+        if group_by:
+            data["group_by"] = group_by
+        if order_by:
+            data["order_by"] = order_by
+        if limit is not None:
+            data["limit"] = limit
+        if offset:
+            data["offset"] = offset
+        site = self.client.cargo_client.client
         last_err = None
         for attempt in range(config.MAX_RETRIES):
             self._throttle()
             try:
-                res = self.client.cargo_client.query(
-                    tables=tables, fields=fields, where=where, join_on=join_on,
-                    group_by=group_by, order_by=order_by, limit=limit, offset=offset,
-                )
+                resp = site.api("cargoquery", **data)
                 self._decay_interval()
-                return res
+                return [item["title"] for item in resp.get("cargoquery", [])]
             except APIError as e:
                 code = getattr(e, "code", "")
                 if code not in RETRYABLE_CODES:

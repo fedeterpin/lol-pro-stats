@@ -458,6 +458,67 @@ table.board th[data-active="true"] { color: var(--gold-bright); }
 }
 .pcard-head { display: flex; align-items: center; gap: 11px; }
 .pcard-id { min-width: 0; flex: 1; }
+
+/* Legacy Score panel */
+.score-panel {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+  margin: 22px 0 6px;
+  padding: 20px 26px;
+  background: linear-gradient(120deg, rgba(120, 90, 40, 0.16), rgba(10, 27, 42, 0.55));
+  clip-path: var(--cut);
+}
+.score-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  clip-path: var(--cut);
+  background: linear-gradient(150deg, var(--gold), var(--gold-deep));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.score-main { display: flex; align-items: center; gap: 16px; }
+.score-num {
+  font-family: var(--font-display-stack);
+  font-weight: 800;
+  font-size: 56px;
+  line-height: 1;
+  color: var(--gold-bright);
+  text-shadow: 0 0 26px rgba(200, 170, 110, 0.3);
+}
+.score-label {
+  font-family: var(--font-display-stack);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+  font-size: 12px;
+}
+.score-rank { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.score-break { flex: 1; min-width: 230px; }
+.score-bar {
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+  clip-path: var(--cut-sm);
+  background: rgba(0, 0, 0, 0.35);
+}
+.score-bar span { display: block; height: 100%; }
+.score-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 11px; font-size: 12px; color: var(--muted); }
+.score-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.score-legend i { width: 9px; height: 9px; display: inline-block; }
+.score-legend b { color: var(--text); }
+.pcard-score {
+  font-family: var(--font-display-stack);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--gold-bright);
+}
 .player-name {
   font-family: var(--font-display-stack);
   font-size: clamp(32px, 6vw, 52px);

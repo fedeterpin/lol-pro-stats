@@ -131,6 +131,28 @@ def _slugify(text: str) -> str:
     return base or "player"
 
 
+# Legacy Score: puntaje interpretable de grandeza (los títulos pesan más). Como el
+# dataset v1 es internacional, mide grandeza en el gran escenario. Ver README/plan.
+LEGACY = {
+    "worlds": 110, "msi": 45, "other": 25,   # puntos por título
+    "apps": 9,                                # por aparición en Worlds
+    "longevity": 0.5,                         # por partida internacional
+    "perf_base": 3.0, "perf_cap": 120, "perf_scale": 0.35,  # bonus por KDA intl elite
+}
+
+
+def _legacy_score(worlds, msi, other, apps, intl_games, kda_intl):
+    worlds, msi, other, apps = worlds or 0, msi or 0, other or 0, apps or 0
+    ig, k = intl_games or 0, kda_intl or 0.0
+    titles = LEGACY["worlds"] * worlds + LEGACY["msi"] * msi + LEGACY["other"] * other
+    stage = LEGACY["apps"] * apps
+    longevity = LEGACY["longevity"] * ig
+    performance = max(0.0, k - LEGACY["perf_base"]) * min(ig, LEGACY["perf_cap"]) * LEGACY["perf_scale"]
+    breakdown = {"titles": round(titles), "stage": round(stage),
+                 "longevity": round(longevity), "performance": round(performance)}
+    return round(titles + stage + longevity + performance), breakdown
+
+
 def compute_player_index(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM player_index")
     rows = conn.execute("""
@@ -142,9 +164,18 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
                 GROUP BY SP.Role ORDER BY COUNT(*) DESC LIMIT 1) AS role,
                (SELECT COUNT(*) FROM player_titles pt WHERE pt.player_id = pcs.player_id) AS intl_titles,
                (SELECT COUNT(*) FROM player_titles pt WHERE pt.player_id = pcs.player_id
-                  AND pt.league = 'World Championship') AS worlds_titles
+                  AND pt.league = 'World Championship') AS worlds_titles,
+               (SELECT COUNT(*) FROM player_titles pt WHERE pt.player_id = pcs.player_id
+                  AND pt.league = 'Mid-Season Invitational') AS msi_titles,
+               (SELECT COUNT(DISTINCT T.Year) FROM scoreboard_players SP
+                  JOIN tournaments T ON T.OverviewPage = SP.OverviewPage
+                  WHERE SP.Link = pcs.player_id AND T.Tier = 'intl_premier'
+                    AND T.League = 'World Championship') AS worlds_appearances,
+               pin.games AS intl_games, pin.kda AS kda_intl
         FROM player_career_stats pcs
         LEFT JOIN players P ON P.OverviewPage = pcs.player_id
+        LEFT JOIN player_career_stats pin
+               ON pin.player_id = pcs.player_id AND pin.scope = 'intl_premier'
         WHERE pcs.scope = 'all'
         ORDER BY pcs.games DESC""").fetchall()
     used: set[str] = set()
@@ -156,15 +187,28 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
             slug = f"{base}-{i}"
             i += 1
         used.add(slug)
+        other = (r["intl_titles"] or 0) - (r["worlds_titles"] or 0) - (r["msi_titles"] or 0)
+        score, breakdown = _legacy_score(r["worlds_titles"], r["msi_titles"], other,
+                                         r["worlds_appearances"], r["intl_games"], r["kda_intl"])
         payload.append((r["player_id"], r["display_id"], slug, r["name"], r["role"],
                         r["country"], r["team"], r["is_retired"], r["games"], r["wins"],
                         r["kda"], r["win_rate"], r["intl_titles"], r["worlds_titles"],
-                        r["image_filename"]))
+                        r["msi_titles"], r["worlds_appearances"], r["intl_games"],
+                        r["kda_intl"], score, json.dumps(breakdown), r["image_filename"]))
     conn.executemany("""INSERT INTO player_index
         (player_id, display_id, slug, name, role, country, team, is_retired, games,
-         wins, kda, win_rate, intl_titles, worlds_titles, image_filename)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
+         wins, kda, win_rate, intl_titles, worlds_titles, msi_titles, worlds_appearances,
+         intl_games, kda_intl, score, score_breakdown, image_filename)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
     conn.commit()
+
+
+def compute_score_leaderboard(conn: sqlite3.Connection, top_n: int = 200) -> None:
+    rows = conn.execute(
+        "SELECT player_id, display_id, score, games FROM player_index "
+        "ORDER BY score DESC LIMIT ?", (top_n,)).fetchall()
+    _store_leaderboard(conn, "legacy_score", "all",
+                       [(r["player_id"], r["display_id"], r["score"], r["games"]) for r in rows])
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +304,7 @@ def _worlds_appearances(conn, top_n: int) -> list[tuple]:
 
 # ---------------------------------------------------------------------------
 RECORD_LABELS = {
+    "legacy_score": "Highest legacy score",
     "intl_titles": "Most international titles",
     "worlds_titles": "Most Worlds titles",
     "msi_titles": "Most MSI titles",
@@ -298,4 +343,5 @@ def run_all(conn: sqlite3.Connection) -> None:
     compute_champion_stats(conn)
     compute_leaderboards(conn)
     compute_player_index(conn)
+    compute_score_leaderboard(conn)
     compute_records(conn)

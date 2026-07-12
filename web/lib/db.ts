@@ -86,6 +86,12 @@ export interface PlayerRow {
   win_rate: number;
   intl_titles: number;
   worlds_titles: number;
+  msi_titles: number;
+  worlds_appearances: number;
+  intl_games: number | null;
+  kda_intl: number | null;
+  score: number;
+  score_breakdown: string | null;
   image_filename: string | null;
 }
 
@@ -93,7 +99,7 @@ export function listPlayers(limit = 2000): PlayerRow[] {
   return withDb(
     (db) =>
       db
-        .prepare(`SELECT * FROM player_index ORDER BY games DESC LIMIT ?`)
+        .prepare(`SELECT * FROM player_index ORDER BY score DESC, games DESC LIMIT ?`)
         .all(limit) as PlayerRow[],
     [],
   );
@@ -105,6 +111,22 @@ export function getPlayerBySlug(slug: string): PlayerRow | null {
       (db.prepare(`SELECT * FROM player_index WHERE slug = ?`).get(slug) as PlayerRow) ??
       null,
     null,
+  );
+}
+
+// Rank by legacy score (1 = highest), and the total number of ranked players.
+export function getScoreRank(score: number): { rank: number; total: number } {
+  return withDb(
+    (db) => {
+      const higher = db
+        .prepare(`SELECT COUNT(*) AS c FROM player_index WHERE score > ?`)
+        .get(score) as { c: number };
+      const total = db.prepare(`SELECT COUNT(*) AS c FROM player_index`).get() as {
+        c: number;
+      };
+      return { rank: higher.c + 1, total: total.c };
+    },
+    { rank: 0, total: 0 },
   );
 }
 

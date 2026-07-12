@@ -65,6 +65,22 @@ npx serve out      # o `npm run dev` para desarrollo
   jugador/equipo/campeón, más récords (KP%, KDA de un solo torneo, por rol). Ver
   el plan en `~/.claude/plans/`.
 
+### Legacy Score (puntaje de jugador)
+
+Puntaje compuesto e **interpretable** de grandeza en el gran escenario (ver
+`etl/transform/aggregate.py::_legacy_score`). Como el dataset v1 es internacional,
+mide legado en Worlds/MSI/First Stand:
+
+```
+score = 110·títulos_Worlds + 45·títulos_MSI + 25·otros_títulos_intl
+      + 9·apariciones_Worlds
+      + 0.5·partidas_intl
+      + max(0, KDA_intl − 3.0) · min(partidas_intl, 120) · 0.35   (bonus de rendimiento)
+```
+
+Se muestra el **desglose** (títulos / escenario / longevidad / rendimiento) en cada
+página de jugador para que sea transparente y defendible. Ej.: Faker lidera.
+
 ### Notas de datos verificadas (Fase 0)
 - Liga del Mundial: `Tournaments.League = 'World Championship'` (NO `'Worlds'`).
 - MSI: `'Mid-Season Invitational'`. Nuevo evento: `'First Stand'` (2025+).

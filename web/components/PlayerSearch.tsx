@@ -60,8 +60,10 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
               </div>
             </div>
             <div className="pcard-stats">
-              <span>{p.games} games</span>
-              <span className="pcard-kda">{p.kda.toFixed(2)} KDA</span>
+              <span className="pcard-score" title="Legacy score">
+                {p.score.toLocaleString("en")}
+              </span>
+              <span>{p.games} games · {p.kda.toFixed(2)} KDA</span>
             </div>
           </Link>
         ))}

@@ -203,7 +203,13 @@ CREATE TABLE IF NOT EXISTS player_index (
     win_rate      REAL,
     intl_titles   INTEGER,
     worlds_titles INTEGER,
-    image_filename TEXT       -- foto de perfil (Leaguepedia Players.Image)
+    msi_titles    INTEGER,
+    worlds_appearances INTEGER,
+    intl_games    INTEGER,
+    kda_intl      REAL,
+    score         INTEGER,     -- Legacy Score (ver aggregate._legacy_score)
+    score_breakdown TEXT,      -- JSON con el desglose de puntos
+    image_filename TEXT        -- foto de perfil (Leaguepedia Players.Image)
 );
 CREATE INDEX IF NOT EXISTS idx_pidx_slug  ON player_index(slug);
 CREATE INDEX IF NOT EXISTS idx_pidx_games ON player_index(games);

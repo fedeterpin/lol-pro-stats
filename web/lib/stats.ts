@@ -9,6 +9,8 @@ export interface StatDef {
 }
 
 export const STAT_CATALOG: StatDef[] = [
+  { key: "legacy_score", label: "Legacy score", short: "Score", kind: "count",
+    help: "A composite greatness rating: international titles (Worlds > MSI > others), Worlds appearances, longevity and elite KDA on the big stage." },
   { key: "career_kda", label: "Best career KDA", short: "KDA", kind: "ratio",
     help: "(Kills + Assists) / Deaths, from career totals. Minimum 200 games.",
     roleScoped: true },

@@ -5,6 +5,7 @@ import {
   getPlayerChampions,
   getPlayerTitles,
   getPlayerRankings,
+  getScoreRank,
   listPlayers,
 } from "@/lib/db";
 import { championSquare } from "@/lib/champion";
@@ -26,6 +27,21 @@ export default async function PlayerPage({
 
   const champs = getPlayerChampions(player.player_id, 12);
   const titles = getPlayerTitles(player.player_id);
+  const scoreRank = getScoreRank(player.score);
+  const breakdown: Record<string, number> = (() => {
+    try {
+      return JSON.parse(player.score_breakdown ?? "{}");
+    } catch {
+      return {};
+    }
+  })();
+  const BD_PARTS = [
+    { key: "titles", label: "Titles", color: "var(--gold)" },
+    { key: "stage", label: "Stage", color: "var(--teal)" },
+    { key: "longevity", label: "Longevity", color: "#6f86b8" },
+    { key: "performance", label: "Performance", color: "#b6784a" },
+  ];
+  const bdTotal = BD_PARTS.reduce((s, p) => s + (breakdown[p.key] || 0), 0) || 1;
   const held = getPlayerRankings(player.player_id, 10)
     .filter((r) => STAT_BY_KEY[r.stat])
     .sort((a, b) => a.rank - b.rank)
@@ -74,6 +90,43 @@ export default async function PlayerPage({
           )}
         </div>
       </header>
+
+      <section className="score-panel">
+        <div className="score-main">
+          <div className="score-num">{player.score.toLocaleString("en")}</div>
+          <div className="score-cap">
+            <div className="score-label">Legacy score</div>
+            {scoreRank.rank > 0 && (
+              <div className="score-rank">
+                #{scoreRank.rank} of {scoreRank.total.toLocaleString("en")}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="score-break">
+          <div className="score-bar">
+            {BD_PARTS.map((p) => {
+              const v = breakdown[p.key] || 0;
+              if (v <= 0) return null;
+              return (
+                <span
+                  key={p.key}
+                  style={{ width: `${(v / bdTotal) * 100}%`, background: p.color }}
+                  title={`${p.label}: ${v}`}
+                />
+              );
+            })}
+          </div>
+          <div className="score-legend">
+            {BD_PARTS.map((p) => (
+              <span key={p.key}>
+                <i style={{ background: p.color }} />
+                {p.label} <b>{breakdown[p.key] || 0}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <div className="tile-row">
         {tiles.map((t) => (

@@ -115,6 +115,21 @@ def _first_year(text):
     return m.group(1) if m else None
 
 
+def compute_player_teams(conn: sqlite3.Connection) -> None:
+    """Historial de equipos: por (jugador, equipo), primer/último año y partidas."""
+    conn.create_function("team_logo", 1, team_logo)
+    conn.execute("DELETE FROM player_teams")
+    conn.execute("""
+        INSERT INTO player_teams (player_id, team, team_logo_url, first_year, last_year, games)
+        SELECT Link, Team, team_logo(Team),
+               MIN(substr(DateTime_UTC, 1, 4)), MAX(substr(DateTime_UTC, 1, 4)),
+               COUNT(DISTINCT GameId)
+        FROM scoreboard_players
+        WHERE Link IS NOT NULL AND Link <> '' AND Team IS NOT NULL AND Team <> ''
+        GROUP BY Link, Team""")
+    conn.commit()
+
+
 def compute_player_titles(conn: sqlite3.Connection) -> None:
     conn.create_function("team_logo", 1, team_logo)
     conn.create_function("first_year", 1, _first_year)
@@ -370,6 +385,7 @@ def run_all(conn: sqlite3.Connection) -> None:
     compute_tiers(conn)
     compute_career_stats(conn)
     compute_player_titles(conn)
+    compute_player_teams(conn)
     compute_player_champions(conn)
     compute_champion_stats(conn)
     compute_leaderboards(conn)

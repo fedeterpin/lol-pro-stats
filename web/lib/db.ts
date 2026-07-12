@@ -178,6 +178,28 @@ export function getPlayerTitles(playerId: string): TitleRow[] {
   );
 }
 
+export interface TeamHistoryRow {
+  team: string;
+  team_logo_url: string | null;
+  first_year: string;
+  last_year: string;
+  games: number;
+}
+
+export function getPlayerTeams(playerId: string): TeamHistoryRow[] {
+  return withDb(
+    (db) =>
+      db
+        .prepare(
+          `SELECT team, team_logo_url, first_year, last_year, games
+           FROM player_teams WHERE player_id = ?
+           ORDER BY first_year, last_year`,
+        )
+        .all(playerId) as TeamHistoryRow[],
+    [],
+  );
+}
+
 export interface RankingRow {
   stat: string;
   scope: string;

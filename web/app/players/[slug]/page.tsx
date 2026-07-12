@@ -4,6 +4,7 @@ import {
   getPlayerBySlug,
   getPlayerChampions,
   getPlayerTitles,
+  getPlayerTeams,
   getPlayerRankings,
   getScoreRank,
   listPlayers,
@@ -27,6 +28,7 @@ export default async function PlayerPage({
 
   const champs = getPlayerChampions(player.player_id, 12);
   const titles = getPlayerTitles(player.player_id);
+  const teams = getPlayerTeams(player.player_id);
   const scoreRank = getScoreRank(player.score);
   const breakdown: Record<string, number> = (() => {
     try {
@@ -178,6 +180,34 @@ export default async function PlayerPage({
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {teams.length > 0 && (
+        <section className="block">
+          <h2 className="block-title">Team history</h2>
+          <div className="teamhist">
+            {teams.map((t) => (
+              <div className="th-item" key={t.team}>
+                {t.team_logo_url && (
+                  <span
+                    className="th-logo"
+                    style={{ backgroundImage: `url(${t.team_logo_url})` }}
+                    aria-hidden="true"
+                  />
+                )}
+                <div className="th-info">
+                  <span className="th-name">{t.team}</span>
+                  <span className="th-years">
+                    {t.first_year === t.last_year
+                      ? t.first_year
+                      : `${t.first_year}–${t.last_year}`}{" "}
+                    · {t.games} games
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}

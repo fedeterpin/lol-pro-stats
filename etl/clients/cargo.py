@@ -24,6 +24,12 @@ from etl import config
 RETRYABLE_CODES = {"ratelimited", "maxlag", "readonly", "internal_api_error_DBQueryError"}
 
 
+def normalize_keys(row: dict) -> dict:
+    """Cargo devuelve field names con espacios (Foo_Bar -> 'Foo Bar'). Los volvemos
+    a guión bajo para que calcen con los nombres de campo pedidos."""
+    return {k.replace(" ", "_"): v for k, v in row.items()}
+
+
 class CargoSource:
     def __init__(self, wiki: str = config.WIKI, raw_dir: Path | None = None,
                  min_interval: float = config.MIN_REQUEST_INTERVAL):
@@ -122,7 +128,9 @@ class CargoSource:
             try:
                 resp = site.api("cargoquery", **data)
                 self._decay_interval()
-                return [item["title"] for item in resp.get("cargoquery", [])]
+                # Cargo devuelve las keys con espacios (DateTime_UTC -> 'DateTime UTC').
+                # Normalizamos a guión bajo para que calcen con los nombres de campo.
+                return [normalize_keys(item["title"]) for item in resp.get("cargoquery", [])]
             except APIError as e:
                 code = getattr(e, "code", "")
                 if code not in RETRYABLE_CODES:

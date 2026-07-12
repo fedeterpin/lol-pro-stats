@@ -26,7 +26,7 @@ TMP = LIVE.parent / "site_view.tmp.sqlite"
 SILVER_ADDS = [("players", "Image", "TEXT")]
 # Tablas GOLD (derivadas): se recrean en cada build para tomar el esquema actual.
 GOLD_TABLES = ["player_career_stats", "leaderboards", "records", "player_index",
-               "player_champions", "player_titles", "champion_stats"]
+               "player_champions", "player_titles", "player_teams", "champion_stats"]
 
 
 def build() -> None:

@@ -676,6 +676,29 @@ table.board th[data-active="true"] { color: var(--gold-bright); }
 .champ-stat b { color: var(--teal); }
 .champ-cell { display: flex; align-items: center; gap: 10px; }
 
+/* Historial de equipos */
+.teamhist { display: flex; flex-wrap: wrap; gap: 12px; }
+.th-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 15px 10px 12px;
+  background: linear-gradient(158deg, var(--panel-top), var(--panel-bot));
+  border: 1px solid var(--border);
+  clip-path: var(--cut-sm);
+}
+.th-logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.th-info { display: flex; flex-direction: column; gap: 1px; }
+.th-name { font-family: var(--font-display-stack); font-weight: 600; color: var(--gold-bright); font-size: 15px; }
+.th-years { color: var(--muted); font-size: 12px; }
+
 /* --- Índice de jugadores / buscador ------------------------------- */
 .search {
   width: 100%;
@@ -720,6 +743,105 @@ table.board th[data-active="true"] { color: var(--gold-bright); }
 .pcard-meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
 .pcard-stats { display: flex; justify-content: space-between; margin-top: 10px; font-size: 13px; color: var(--text); }
 .pcard-kda { color: var(--teal); font-weight: 600; }
+
+/* --- Home: buscador protagonista + sección de récords ------------- */
+.home-hero { text-align: center; padding: 60px 0 40px; }
+.home-hero .subtitle { margin: 16px auto 0; }
+
+.home-search { position: relative; max-width: 580px; margin: 30px auto 0; text-align: left; }
+.hs-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 18px;
+  background: linear-gradient(180deg, rgba(10, 27, 42, 0.9), rgba(5, 15, 24, 0.92));
+  clip-path: var(--cut);
+}
+.hs-box::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  clip-path: var(--cut);
+  background: linear-gradient(150deg, var(--gold), var(--gold-deep));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.hs-icon { color: var(--gold); font-size: 22px; line-height: 1; flex: none; }
+.hs-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--gold-bright);
+  font-family: var(--font-body-stack);
+  font-size: 18px;
+  padding: 15px 4px;
+}
+.hs-input::placeholder { color: var(--dim); }
+.hs-input:focus { outline: none; }
+
+.hs-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  max-height: 420px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #0b1a2b, #061019);
+  border: 1px solid var(--gold-deep);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+}
+.hs-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  transition: background 0.12s;
+}
+.hs-item:hover { background: rgba(10, 200, 185, 0.08); }
+.avatar.sm { width: 34px; height: 34px; font-size: 15px; }
+.hs-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.hs-name { font-family: var(--font-display-stack); font-weight: 600; color: var(--gold-bright); font-size: 15px; }
+.hs-meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+.hs-score { font-family: var(--font-display-stack); font-weight: 800; color: var(--teal); font-size: 16px; }
+.hs-empty { padding: 14px 12px; color: var(--muted); font-size: 14px; }
+
+.home-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+.home-links a {
+  font-family: var(--font-display-stack);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--gold-darkest);
+  padding: 8px 16px;
+  clip-path: var(--cut-sm);
+  transition: color 0.15s, border-color 0.15s;
+}
+.home-links a:hover { color: var(--gold-bright); border-color: var(--gold-deep); }
+
+.records-section { margin-top: 20px; }
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-display-stack);
+  font-size: 16px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--gold-darkest);
+}
 
 /* --- Movimiento / accesibilidad ----------------------------------- */
 @keyframes rise {

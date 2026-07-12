@@ -243,6 +243,18 @@ CREATE TABLE IF NOT EXISTS player_titles (
 );
 CREATE INDEX IF NOT EXISTS idx_ptitles_player ON player_titles(player_id);
 
+-- Historial de equipos por jugador (derivado del scoreboard: años y partidas).
+CREATE TABLE IF NOT EXISTS player_teams (
+    player_id     TEXT,
+    team          TEXT,
+    team_logo_url TEXT,
+    first_year    TEXT,
+    last_year     TEXT,
+    games         INTEGER,
+    PRIMARY KEY (player_id, team)
+);
+CREATE INDEX IF NOT EXISTS idx_pteams_player ON player_teams(player_id);
+
 -- Stats por campeón (a nivel internacional): más jugados / mejor win rate.
 CREATE TABLE IF NOT EXISTS champion_stats (
     champion  TEXT PRIMARY KEY,

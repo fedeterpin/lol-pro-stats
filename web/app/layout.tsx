@@ -37,10 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </span>
             </Link>
             <nav className="nav">
-              <Link href="/">Records</Link>
+              <Link href="/">Search</Link>
               <Link href="/leaderboards">Leaderboards</Link>
               <Link href="/players">Players</Link>
               <Link href="/champions">Champions</Link>
+              <Link href="/#records">Records</Link>
             </nav>
           </div>
         </header>

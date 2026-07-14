@@ -1,13 +1,13 @@
-"""Genera una 'vista' consistente de la DB para que el dev server muestre el avance
-del backfill SIN tocar la DB en escritura.
+"""Generates a consistent 'view' of the DB so the dev server can show the backfill
+progress WITHOUT touching the DB being written to.
 
-- Backup online (consistente) de data/site.sqlite -> tmp (reader WAL, no interfiere
-  con el writer del backfill).
-- Sobre el tmp (descartable): asegura columnas nuevas de silver + recrea las tablas
-  gold con el esquema actual, y corre los agregados (SQL puro, sin API).
-- Swap atómico tmp -> data/site_view.sqlite (el dev server lo lee readonly).
+- Online (consistent) backup of data/site.sqlite -> tmp (WAL reader, does not interfere
+  with the backfill writer).
+- On the tmp (disposable): ensures new silver columns + recreates the gold tables with
+  the current schema, and runs the aggregates (pure SQL, no API).
+- Atomic swap tmp -> data/site_view.sqlite (the dev server reads it readonly).
 
-Uso: python -m etl.build_view   (o en loop cada N segundos)
+Usage: python -m etl.build_view   (or in a loop every N seconds)
 """
 from __future__ import annotations
 
@@ -22,21 +22,21 @@ LIVE = config.DB_PATH
 VIEW = LIVE.parent / "site_view.sqlite"
 TMP = LIVE.parent / "site_view.tmp.sqlite"
 
-# Columnas de silver que pueden faltar en DBs viejas (se agregan a la copia).
+# Silver columns that may be missing in old DBs (added to the copy).
 SILVER_ADDS = [("players", "Image", "TEXT")]
-# Tablas GOLD (derivadas): se recrean en cada build para tomar el esquema actual.
+# GOLD tables (derived): recreated on every build to pick up the current schema.
 GOLD_TABLES = ["player_career_stats", "leaderboards", "records", "player_index",
                "player_champions", "player_titles", "player_teams", "champion_stats"]
 
 
 def build() -> None:
     if not LIVE.exists():
-        print("[view] todavía no existe la DB live")
+        print("[view] the live DB does not exist yet")
         return
     for p in (TMP, Path(str(TMP) + "-wal"), Path(str(TMP) + "-shm")):
         p.unlink(missing_ok=True)
 
-    # Backup online consistente (no bloquea al writer del backfill).
+    # Consistent online backup (does not block the backfill writer).
     src = sqlite3.connect(LIVE)
     dst = sqlite3.connect(TMP)
     with dst:
@@ -45,13 +45,13 @@ def build() -> None:
     dst.close()
 
     conn = db.connect(TMP)
-    # Asegurar columnas de silver que quizás no existan en la DB live vieja.
+    # Ensure silver columns that may not exist in the old live DB.
     for table, col, coltype in SILVER_ADDS:
         try:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
         except sqlite3.OperationalError:
-            pass  # ya existe
-    # Recrear tablas gold con el esquema actual (son derivadas).
+            pass  # already exists
+    # Recreate gold tables with the current schema (they are derived).
     for t in GOLD_TABLES:
         conn.execute(f"DROP TABLE IF EXISTS {t}")
     db.apply_schema(conn)
@@ -67,10 +67,10 @@ def build() -> None:
         "WHERE stat='intl_titles' ORDER BY rank LIMIT 3").fetchall()
     conn.close()
 
-    os.replace(TMP, VIEW)   # swap atómico
+    os.replace(TMP, VIEW)   # atomic swap
     top_s = ", ".join(f"{r['display_id']}({int(r['value'])})" for r in top) or "—"
-    print(f"[view] games={games} player_rows={prows} jugadores={players} fotos={imgs} | "
-          f"top títulos int.: {top_s}")
+    print(f"[view] games={games} player_rows={prows} players={players} photos={imgs} | "
+          f"top intl titles: {top_s}")
 
 
 if __name__ == "__main__":

@@ -1,30 +1,30 @@
-# LoL Pro Stats — Almanaque de récords
+# LoL Pro Stats — Records Almanac
 
-Sitio estilo **referencia deportiva** (Basketball-Reference / Transfermarkt) con
-estadísticas históricas de jugadores profesionales de League of Legends: mejor KDA
-histórico, récord de KDA en un Worlds, más títulos internacionales ganados, más
-partidas, mejor win rate, y más.
+A **sports-reference**-style site (Basketball-Reference / Transfermarkt) with
+historical statistics of professional League of Legends players: best all-time KDA,
+KDA record at a Worlds, most international titles won, most games played, best win
+rate, and more.
 
-Fuente primaria: **Leaguepedia** (lol.fandom.com) vía su API **Cargo** — la misma
-fuente que renderiza el wiki. Fuente complementaria (Fase 2): **Oracle's Elixir**
-(economía avanzada + pentakills, 2014→hoy).
+Primary source: **Leaguepedia** (lol.fandom.com) via its **Cargo** API — the same
+source that renders the wiki. Complementary source (Phase 2): **Oracle's Elixir**
+(advanced economy + pentakills, 2014→today).
 
-## Arquitectura
+## Architecture
 
-"Computar al actualizar, servir estático desde el edge". El dato es chico, cambia
-lento y es read-heavy → precomputamos todo en el ETL y servimos estático.
+"Compute on update, serve static from the edge". The data is small, changes slowly
+and is read-heavy → we precompute everything in the ETL and serve static.
 
 ```
 etl/   (Python)   Extract (mwcleric/Cargo) -> bronze JSON gzip -> SQLite silver
                   -> transform (tiers, player_career_stats, leaderboards, records) = GOLD
-web/   (Next.js)  output:export (SSG). Lee data/site.sqlite en build time.
-                  Rankings interactivos con TanStack Table.
-db/    schema.sql  Esquema SQLite (silver + gold).
+web/   (Next.js)  output:export (SSG). Reads data/site.sqlite at build time.
+                  Interactive rankings with TanStack Table.
+db/    schema.sql  SQLite schema (silver + gold).
 data/  site.sqlite + raw/ (bronze)
 ```
 
-Deploy previsto: ETL en **GitHub Actions** (cron diario + full semanal) → dispara un
-**deploy hook de Cloudflare Pages** que reconstruye el sitio con datos frescos.
+Planned deploy: ETL on **GitHub Actions** (daily cron + weekly full) → triggers a
+**Cloudflare Pages deploy hook** that rebuilds the site with fresh data.
 
 ## Setup
 
@@ -33,76 +33,76 @@ Deploy previsto: ETL en **GitHub Actions** (cron diario + full semanal) → disp
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 
-# Slice de un torneo (desarrollo/verificación):
+# Single-tournament slice (development/verification):
 python -m etl.run --tournament "2025 First Stand" --fresh
 ```
 
-> **⚠️ Rate limit / cuenta de bot.** La API **anónima** de Fandom limita muy fuerte
-> (en la práctica ~1 query cada 30-40 s; el cliente hace backoff automático pero es
-> lento). Para el backfill histórico completo es **casi imprescindible** una cuenta
-> de bot de Leaguepedia: da páginas de 5.000 filas (vs 500) y límites más altos.
-> Configurá las credenciales y el ETL las usa automáticamente:
+> **⚠️ Rate limit / bot account.** Fandom's **anonymous** API limits very hard
+> (in practice ~1 query every 30-40 s; the client does automatic backoff but it is
+> slow). For the complete historical backfill a Leaguepedia bot account is **almost
+> indispensable**: it gives 5,000-row pages (vs 500) and higher limits.
+> Set the credentials and the ETL uses them automatically:
 > ```bash
-> export LEAGUEPEDIA_USERNAME="TuUsuario@TuBot"
-> export LEAGUEPEDIA_PASSWORD="..."   # bot password de Special:BotPasswords
+> export LEAGUEPEDIA_USERNAME="YourUser@YourBot"
+> export LEAGUEPEDIA_PASSWORD="..."   # bot password from Special:BotPasswords
 > ```
 
 ### Web (Next.js)
 ```bash
 cd web
 npm install
-npm run build      # SSG: lee ../data/site.sqlite
-npx serve out      # o `npm run dev` para desarrollo
+npm run build      # SSG: reads ../data/site.sqlite
+npx serve out      # or `npm run dev` for development
 ```
 
-## Estado
+## Status
 
-- ✅ ETL slice por torneo (extract + bronze + SQLite + gold) funcionando.
-- ✅ Rankings: KDA de carrera, títulos internacionales, títulos de Worlds, partidas,
-  kills, win rate (con umbrales mínimos de muestra).
-- ✅ Web SSG con record book + rankings interactivos.
-- ⏳ Backfill completo (todas las regiones desde 2011), Oracle's Elixir, páginas de
-  jugador/equipo/campeón, más récords (KP%, KDA de un solo torneo, por rol). Ver
-  el plan en `~/.claude/plans/`.
+- ✅ Per-tournament ETL slice (extract + bronze + SQLite + gold) working.
+- ✅ Rankings: career KDA, international titles, Worlds titles, games,
+  kills, win rate (with minimum sample thresholds).
+- ✅ SSG web with record book + interactive rankings.
+- ⏳ Complete backfill (all regions since 2011), Oracle's Elixir, player/team/champion
+  pages, more records (KP%, single-tournament KDA, per role). See
+  the plan in `~/.claude/plans/`.
 
-### Legacy Score (puntaje de jugador)
+### Legacy Score (player score)
 
-Puntaje compuesto e **interpretable** de grandeza en el gran escenario (ver
-`etl/transform/aggregate.py::_legacy_score`). Como el dataset v1 es internacional,
-mide legado en Worlds/MSI/First Stand:
+A composite, **interpretable** score of greatness on the big stage (see
+`etl/transform/aggregate.py::_legacy_score`). Since the v1 dataset is international,
+it measures legacy at Worlds/MSI/First Stand:
 
 ```
-score = 110·títulos_Worlds + 45·títulos_MSI + 25·otros_títulos_intl
-      + 9·apariciones_Worlds
-      + 0.5·partidas_intl
-      + max(0, KDA_intl − 3.0) · min(partidas_intl, 120) · 0.35   (bonus de rendimiento)
+score = 110·worlds_titles + 45·msi_titles + 25·other_intl_titles
+      + 9·worlds_appearances
+      + 0.5·intl_games
+      + max(0, intl_KDA − 3.0) · min(intl_games, 120) · 0.35   (performance bonus)
 ```
 
-Se muestra el **desglose** (títulos / escenario / longevidad / rendimiento) en cada
-página de jugador para que sea transparente y defendible. Ej.: Faker lidera.
+The **breakdown** (titles / stage / longevity / performance) is shown on each
+player page so it is transparent and defensible. E.g.: Faker leads.
 
-### Notas de datos verificadas (Fase 0)
-- Liga del Mundial: `Tournaments.League = 'World Championship'` (NO `'Worlds'`).
-- MSI: `'Mid-Season Invitational'`. Nuevo evento: `'First Stand'` (2025+).
-- Eventos internacionales: `Tournaments.Region = 'International'`.
-- Identidad de jugador: agregar por `ScoreboardPlayers.Link` (canónico); resolver
-  nombres tipeados vía `PlayerRedirects.AllName -> OverviewPage`.
+### Verified data notes (Phase 0)
+- World Championship league: `Tournaments.League = 'World Championship'` (NOT `'Worlds'`).
+- MSI: `'Mid-Season Invitational'`. New event: `'First Stand'` (2025+).
+- International events: `Tournaments.Region = 'International'`.
+- Player identity: aggregate by `ScoreboardPlayers.Link` (canonical); resolve typed
+  names via `PlayerRedirects.AllName -> OverviewPage`.
 
-## Referencias
+## References
 
-- [Help:Leaguepedia API](https://lol.fandom.com/wiki/Help:Leaguepedia_API) — rate-limits, bot password, paquetes Python
-- [Help:ACS archive](https://lol.fandom.com/wiki/Help:ACS_archive) — archivo ACS/JSON de partidas
-- mwcleric: [repo](https://github.com/RheingoldRiver/mwcleric) · [docs](https://mwcleric.readthedocs.io/) — usamos el fork `arbolitoloco1/mwcleric@empty_string_fix`
+- [Help:Leaguepedia API](https://lol.fandom.com/wiki/Help:Leaguepedia_API) — rate-limits, bot password, Python packages
+- [Help:ACS archive](https://lol.fandom.com/wiki/Help:ACS_archive) — ACS/JSON match archive
+- mwcleric: [repo](https://github.com/RheingoldRiver/mwcleric) · [docs](https://mwcleric.readthedocs.io/) — we use the fork `arbolitoloco1/mwcleric@empty_string_fix`
 - mwrogue: [repo](https://github.com/RheingoldRiver/mwrogue) · [docs](https://mwrogue.readthedocs.io/)
 - [MediaWiki API](https://www.mediawiki.org/wiki/API:Main_page)
 
-> **Rate limits (Cargo).** Fandom limita fuerte cargoquery para cuentas sin el grupo
-> `bot`: token-bucket de ~5, refill ~1/4s; golpearlo mientras estás limitado extiende
-> el castigo. El cliente usa throttle adaptativo (AIMD) + esperas quietas. Para
-> full-speed (sin límite) hace falta el flag `bot` de Leaguepedia (se pide a River).
+> **Rate limits (Cargo).** Fandom limits cargoquery hard for accounts without the
+> `bot` group: token-bucket of ~5, refill ~1/4s; hitting it while you are limited
+> extends the penalty. The client uses adaptive throttle (AIMD) + quiet waits. For
+> full-speed (no limit) you need Leaguepedia's `bot` flag (request it from River).
 
-## Créditos y licencia de datos
+## Credits and data license
 
-- **Leaguepedia** (lol.fandom.com) — datos bajo **CC BY-SA 4.0**.
-- **Oracle's Elixir** (Tim "Magic" Sevenhuysen) — uso con atribución.
-- Proyecto no oficial, sin afiliación con Riot Games.
+- **Leaguepedia** (lol.fandom.com) — data under **CC BY-SA 4.0**.
+- **Oracle's Elixir** (Tim "Magic" Sevenhuysen) — used with attribution.
+- Unofficial project, not affiliated with Riot Games.

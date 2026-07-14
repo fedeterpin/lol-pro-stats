@@ -1,4 +1,4 @@
-"""Helpers de SQLite: conexión, aplicación de esquema, coerción y upsert."""
+"""SQLite helpers: connection, schema application, coercion and upsert."""
 from __future__ import annotations
 
 import sqlite3
@@ -40,7 +40,7 @@ def _coerce_value(spec: config.TableSpec, field: str, raw):
         return None
     if field in spec.int_fields:
         try:
-            return int(float(s))  # tolera "3" y "3.0"
+            return int(float(s))  # tolerates "3" and "3.0"
         except ValueError:
             return None
     if field in spec.float_fields:

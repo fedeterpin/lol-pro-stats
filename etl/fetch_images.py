@@ -1,10 +1,10 @@
-"""Trae la foto de perfil de cada jugador desde la tabla PlayerImages de Leaguepedia
-y la guarda en players.Image (el nombre de archivo; la URL se construye en aggregate).
+"""Fetches each player's profile photo from Leaguepedia's PlayerImages table and
+stores it in players.Image (the file name; the URL is built in aggregate).
 
-Elige, por jugador, la foto de perfil (IsProfileImage) MÁS RECIENTE según el año que
-aparece en el nombre del archivo (SortDate suele venir vacío).
+Picks, per player, the MOST RECENT profile photo (IsProfileImage) based on the year
+that appears in the file name (SortDate is usually empty).
 
-⚠️ Escribe en la DB live -> correr DESPUÉS del backfill.
+WARNING: Writes to the live DB -> run AFTER the backfill.
 
     python -m etl.fetch_images
 """
@@ -19,7 +19,7 @@ from etl.extract.tournament import _in_clause, _chunked
 
 
 def _recency_key(filename: str) -> tuple:
-    """Ordena por año y split extraídos del nombre (mayor = más reciente)."""
+    """Sorts by year and split extracted from the name (higher = more recent)."""
     years = re.findall(r"(20\d{2})", filename or "")
     year = max(int(y) for y in years) if years else 0
     sp = re.search(r"Split[ _](\d)", filename or "")
@@ -32,11 +32,11 @@ def main() -> None:
         conn.execute("ALTER TABLE players ADD COLUMN Image TEXT")
         conn.commit()
     except sqlite3.OperationalError:
-        pass  # ya existe
+        pass  # already exists
 
     links = [r["OverviewPage"] for r in
              conn.execute("SELECT OverviewPage FROM players").fetchall()]
-    print(f"[images] buscando foto de perfil para {len(links)} jugadores…")
+    print(f"[images] looking up profile photo for {len(links)} players…")
     src = CargoSource()
     total_with = 0
     for i, chunk in enumerate(_chunked(links, 60), 1):
@@ -56,9 +56,9 @@ def main() -> None:
             conn.execute("UPDATE players SET Image = ? WHERE OverviewPage = ?", (fn, link))
         conn.commit()
         total_with += len(best)
-        print(f"  batch {i}: +{len(best)} fotos ({total_with} acumuladas)")
+        print(f"  batch {i}: +{len(best)} photos ({total_with} accumulated)")
     conn.close()
-    print(f"[images] listo: {total_with}/{len(links)} jugadores con foto")
+    print(f"[images] done: {total_with}/{len(links)} players with photo")
 
 
 if __name__ == "__main__":

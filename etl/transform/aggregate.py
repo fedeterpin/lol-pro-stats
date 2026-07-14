@@ -1,8 +1,8 @@
-"""Transform GOLD: tiers, career stats (por scope/rol), leaderboards, pool de
-campeones, títulos, stats de campeón, índice de jugadores y records.
+"""Transform GOLD: tiers, career stats (per scope/role), leaderboards, champion
+pool, titles, champion stats, player index and records.
 
-Regla de KDA (no negociable): (ΣK+ΣA)/ΣD desde totales crudos, nunca promedio de
-ratios por juego. Se usa MAX(deaths,1) en el denominador para el caso deaths=0.
+KDA rule (non-negotiable): (ΣK+ΣA)/ΣD from raw totals, never an average of per-game
+ratios. MAX(deaths,1) is used in the denominator for the deaths=0 case.
 """
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ from etl import config
 
 ROLES = ["Top", "Jungle", "Mid", "Bot", "Support"]
 
-# --- URLs de imágenes del CDN de Fandom (sin bloqueo de UA; construidas por MD5) ---
+# --- Fandom CDN image URLs (no UA blocking; built by MD5) ---
 _CDN = "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images"
 
 
 def cdn_image(filename):
-    """URL directa a una imagen de Leaguepedia dado su nombre de archivo."""
+    """Direct URL to a Leaguepedia image given its file name."""
     if not filename:
         return None
     fn = str(filename).replace(" ", "_")
@@ -29,7 +29,7 @@ def cdn_image(filename):
 
 
 def team_logo(team):
-    """URL del logo cuadrado de un equipo (Leaguepedia usa '<Team>logo square.png')."""
+    """URL of a team's square logo (Leaguepedia uses '<Team>logo square.png')."""
     if not team:
         return None
     return cdn_image(f"{team}logo square.png")
@@ -116,7 +116,7 @@ def _first_year(text):
 
 
 def compute_player_teams(conn: sqlite3.Connection) -> None:
-    """Historial de equipos: por (jugador, equipo), primer/último año y partidas."""
+    """Team history: per (player, team), first/last year and games."""
     conn.create_function("team_logo", 1, team_logo)
     conn.execute("DELETE FROM player_teams")
     conn.execute("""
@@ -176,13 +176,13 @@ def _slugify(text: str) -> str:
     return base or "player"
 
 
-# Legacy Score: puntaje interpretable de grandeza (los títulos pesan más). Como el
-# dataset v1 es internacional, mide grandeza en el gran escenario. Ver README/plan.
+# Legacy Score: an interpretable greatness score (titles weigh more). Since the v1
+# dataset is international, it measures greatness on the big stage. See README/plan.
 LEGACY = {
-    "worlds": 110, "msi": 45, "other": 25,   # puntos por título
-    "apps": 9,                                # por aparición en Worlds
-    "longevity": 0.5,                         # por partida internacional
-    "perf_base": 3.0, "perf_cap": 120, "perf_scale": 0.35,  # bonus por KDA intl elite
+    "worlds": 110, "msi": 45, "other": 25,   # points per title
+    "apps": 9,                                # per Worlds appearance
+    "longevity": 0.5,                         # per international game
+    "perf_base": 3.0, "perf_cap": 120, "perf_scale": 0.35,  # bonus for elite intl KDA
 }
 
 
@@ -269,7 +269,7 @@ def _store_leaderboard(conn, stat: str, scope: str, ranked: list[tuple]) -> None
     conn.commit()
 
 
-# stats por-jugador que se calculan para cada scope (all + por rol)
+# per-player stats computed for each scope (all + per role)
 PER_PLAYER_STATS = [
     ("career_kda", "kda", "career_kda"),
     ("games_played", "games", None),
@@ -292,7 +292,7 @@ def compute_leaderboards(conn: sqlite3.Connection, top_n: int = 200) -> None:
                                [(r["player_id"], r["display_id"], r["value"], r["games"])
                                 for r in rows])
 
-    # KDA solo en internacionales (umbral propio, más bajo)
+    # KDA only at internationals (its own, lower threshold)
     thr = config.THRESHOLDS["career_kda_intl"]
     rows = conn.execute(
         f"""SELECT player_id, display_id, kda AS value, games FROM player_career_stats
@@ -301,7 +301,7 @@ def compute_leaderboards(conn: sqlite3.Connection, top_n: int = 200) -> None:
     _store_leaderboard(conn, "career_kda_intl", "all",
                        [(r["player_id"], r["display_id"], r["value"], r["games"]) for r in rows])
 
-    # Títulos y apariciones
+    # Titles and appearances
     _store_leaderboard(conn, "intl_titles", "all", _titles(conn, None, top_n))
     _store_leaderboard(conn, "worlds_titles", "all", _titles(conn, "World Championship", top_n))
     _store_leaderboard(conn, "msi_titles", "all", _titles(conn, "Mid-Season Invitational", top_n))

@@ -1,30 +1,30 @@
 # Deploy — Cloudflare (Workers Builds) + GitHub
 
-El sitio es **estático** (Next.js `output: export`) y se buildea desde
-`data/web.sqlite` (una SQLite slim solo-gold, commiteada, ~2 MB).
+The site is **static** (Next.js `output: export`) and is built from
+`data/web.sqlite` (a slim, gold-only SQLite, committed, ~2 MB).
 
-**Cloudflare Workers Builds** está conectado al repo de GitHub: en cada push a
-`main`, Cloudflare clona, buildea y publica. El `wrangler.jsonc` sirve `web/out`
-como Worker de assets estáticos.
+**Cloudflare Workers Builds** is connected to the GitHub repo: on every push to
+`main`, Cloudflare clones, builds and publishes. The `wrangler.jsonc` serves `web/out`
+as a static-assets Worker.
 
-## Configuración en Cloudflare (una vez)
-Al conectar el repo (Workers & Pages → Import a repository):
+## Cloudflare setup (one-time)
+When connecting the repo (Workers & Pages → Import a repository):
 - **Project name**: `lol-pro-stats`
 - **Build command**: `cd web && npm ci && npm run build`
-- **Deploy command**: `npx wrangler deploy` (default — usa `wrangler.jsonc`)
+- **Deploy command**: `npx wrangler deploy` (default — uses `wrangler.jsonc`)
 - Deploy.
 
-El sitio queda en `https://lol-pro-stats.<subdominio>.workers.dev` (o el dominio
-que asigne Cloudflare / uno custom).
+The site lives at `https://lol-pro-stats.<subdomain>.workers.dev` (or the domain
+Cloudflare assigns / a custom one).
 
-## Actualizar datos (tras un Worlds/MSI)
-El workflow **`.github/workflows/update-data.yml`** (GitHub Actions, dispatch manual)
-corre el ETL, regenera `data/web.sqlite` y la commitea → el push dispara el rebuild
-de Cloudflare. Requiere secrets en el repo de GitHub:
-- `LEAGUEPEDIA_USERNAME` — `TuUsuario@lol-pro-stats`
-- `LEAGUEPEDIA_PASSWORD` — el bot password
+## Updating data (after a Worlds/MSI)
+The **`.github/workflows/update-data.yml`** workflow (GitHub Actions, manual dispatch)
+runs the ETL, regenerates `data/web.sqlite` and commits it → the push triggers the
+Cloudflare rebuild. Requires secrets in the GitHub repo:
+- `LEAGUEPEDIA_USERNAME` — `YourUser@lol-pro-stats`
+- `LEAGUEPEDIA_PASSWORD` — the bot password
 
-O correr el ETL localmente y pushear:
+Or run the ETL locally and push:
 ```bash
 python -m etl.backfill --leagues "World Championship,Mid-Season Invitational,First Stand"
 python -m etl.fetch_images
@@ -32,8 +32,8 @@ python -m etl.build_web_db
 git add -f data/web.sqlite && git commit -m "chore(data): refresh" && git push
 ```
 
-## Notas
-- La DB completa del ETL (`data/site.sqlite`) y el bronze (`data/raw/`) están
-  gitignorados; solo se commitea `data/web.sqlite` (~2 MB).
-- Build local: `cd web && npm run build && npx serve out`.
-- `wrangler.jsonc` usa `not_found_handling: "404-page"` para servir `out/404.html`.
+## Notes
+- The full ETL DB (`data/site.sqlite`) and the bronze (`data/raw/`) are
+  gitignored; only `data/web.sqlite` (~2 MB) is committed.
+- Local build: `cd web && npm run build && npx serve out`.
+- `wrangler.jsonc` uses `not_found_handling: "404-page"` to serve `out/404.html`.

@@ -1,17 +1,17 @@
--- Esquema SQLite de LoL Pro Stats.
--- Capa SILVER: columnas = nombres de campo de Cargo (verbatim) para que el loader
---   pueda insertar row-dicts sin mapeo. Tipos INTEGER/REAL para coerción numérica.
--- Capa GOLD: tablas agregadas/precomputadas por el ETL (snake_case).
--- Fuente: Leaguepedia (CC-BY-SA). Ver README.
+-- LoL Pro Stats SQLite schema.
+-- SILVER layer: columns = Cargo field names (verbatim) so the loader
+--   can insert row-dicts without mapping. INTEGER/REAL types for numeric coercion.
+-- GOLD layer: tables aggregated/precomputed by the ETL (snake_case).
+-- Source: Leaguepedia (CC-BY-SA). See README.
 
 PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = OFF;   -- carga bulk; la integridad se garantiza en el transform
+PRAGMA foreign_keys = OFF;   -- bulk load; integrity is guaranteed in the transform
 
 -- =====================================================================
 -- SILVER
 -- =====================================================================
 
--- Un torneo por fila. Tier se computa en el transform (tiers.py).
+-- One tournament per row. Tier is computed in the transform (tiers.py).
 CREATE TABLE IF NOT EXISTS tournaments (
     OverviewPage     TEXT PRIMARY KEY,
     Name             TEXT,
@@ -26,13 +26,13 @@ CREATE TABLE IF NOT EXISTS tournaments (
     DateStart        TEXT,
     Split            TEXT,
     Prizepool        TEXT,
-    Tier             TEXT     -- derivado: intl_premier|intl_legacy|regional_playoffs|regional_regular|exhibition
+    Tier             TEXT     -- derived: intl_premier|intl_legacy|regional_playoffs|regional_regular|exhibition
 );
 CREATE INDEX IF NOT EXISTS idx_tournaments_league ON tournaments(League);
 CREATE INDEX IF NOT EXISTS idx_tournaments_tier   ON tournaments(Tier);
 CREATE INDEX IF NOT EXISTS idx_tournaments_year   ON tournaments(Year);
 
--- Un juego por fila.
+-- One game per row.
 CREATE TABLE IF NOT EXISTS scoreboard_games (
     GameId             TEXT PRIMARY KEY,
     MatchId            TEXT,
@@ -48,18 +48,18 @@ CREATE TABLE IF NOT EXISTS scoreboard_games (
     DateTime_UTC       TEXT,
     Gamelength_Number  REAL,
     Patch              TEXT,
-    RiotPlatformGameId TEXT,   -- join a Oracle's Elixir (OE.gameid)
+    RiotPlatformGameId TEXT,   -- join to Oracle's Elixir (OE.gameid)
     RiotGameId         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sg_overview ON scoreboard_games(OverviewPage);
 CREATE INDEX IF NOT EXISTS idx_sg_riotpgid ON scoreboard_games(RiotPlatformGameId);
 CREATE INDEX IF NOT EXISTS idx_sg_date     ON scoreboard_games(DateTime_UTC);
 
--- Un jugador por juego (tabla de hechos / espina dorsal).
+-- One player per game (fact table / backbone).
 CREATE TABLE IF NOT EXISTS scoreboard_players (
     UniqueLine        TEXT PRIMARY KEY,
-    Link              TEXT,    -- identidad canónica del jugador (== Players.OverviewPage)
-    Name              TEXT,    -- handle mostrado en ese juego (puede ser alias viejo)
+    Link              TEXT,    -- canonical player identity (== Players.OverviewPage)
+    Name              TEXT,    -- handle shown in that game (may be an old alias)
     Champion          TEXT,
     Kills             INTEGER,
     Deaths            INTEGER,
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS scoreboard_players (
     Side              INTEGER,
     Team              TEXT,
     TeamKills         INTEGER,
-    PlayerWin         TEXT,    -- 'Yes'/'No' (verificar en Fase 0)
+    PlayerWin         TEXT,    -- 'Yes'/'No' (verify in Phase 0)
     DateTime_UTC      TEXT,
     Tournament        TEXT,
     OverviewPage      TEXT,
@@ -85,11 +85,11 @@ CREATE INDEX IF NOT EXISTS idx_sp_overview ON scoreboard_players(OverviewPage);
 CREATE INDEX IF NOT EXISTS idx_sp_game     ON scoreboard_players(GameId);
 CREATE INDEX IF NOT EXISTS idx_sp_champ    ON scoreboard_players(Champion);
 
--- Bio/roster de jugadores (identidad canónica = OverviewPage).
+-- Player bio/roster (canonical identity = OverviewPage).
 CREATE TABLE IF NOT EXISTS players (
     OverviewPage      TEXT PRIMARY KEY,
-    ID                TEXT,    -- display ID canónico actual
-    Name              TEXT,    -- nombre real
+    ID                TEXT,    -- current canonical display ID
+    Name              TEXT,    -- real name
     NativeName        TEXT,
     Country           TEXT,
     Nationality       TEXT,
@@ -100,19 +100,19 @@ CREATE TABLE IF NOT EXISTS players (
     Birthdate         TEXT,
     IsRetired         INTEGER,
     IsSubstitute      INTEGER,
-    Image             TEXT     -- nombre de archivo de la foto de perfil (Leaguepedia)
+    Image             TEXT     -- profile photo file name (Leaguepedia)
 );
 CREATE INDEX IF NOT EXISTS idx_players_id ON players(ID);
 
--- Mapa alias -> canónico (resolución de identidad).
+-- Alias -> canonical map (identity resolution).
 CREATE TABLE IF NOT EXISTS player_redirects (
-    AllName      TEXT PRIMARY KEY,   -- todo alias/handle/variante
-    OverviewPage TEXT,               -- Players.OverviewPage canónico
+    AllName      TEXT PRIMARY KEY,   -- any alias/handle/variant
+    OverviewPage TEXT,               -- canonical Players.OverviewPage
     ID           TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_pr_overview ON player_redirects(OverviewPage);
 
--- Placements/ganadores por torneo. Sin PK natural de un campo -> rowid + UNIQUE compuesto.
+-- Placements/winners per tournament. No single-field natural PK -> rowid + composite UNIQUE.
 CREATE TABLE IF NOT EXISTS tournament_results (
     OverviewPage TEXT,
     Event        TEXT,
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS tournament_results (
 CREATE INDEX IF NOT EXISTS idx_tr_overview ON tournament_results(OverviewPage);
 CREATE INDEX IF NOT EXISTS idx_tr_place    ON tournament_results(Place_Number);
 
--- Jugadores participantes por evento (roster).
+-- Participating players per event (roster).
 CREATE TABLE IF NOT EXISTS tournament_players (
     OverviewPage    TEXT,
     Team            TEXT,
@@ -145,14 +145,14 @@ CREATE INDEX IF NOT EXISTS idx_tp_link     ON tournament_players(Link);
 CREATE INDEX IF NOT EXISTS idx_tp_pat      ON tournament_players(PageAndTeam);
 
 -- =====================================================================
--- GOLD (precomputado por transform/aggregate)
+-- GOLD (precomputed by transform/aggregate)
 -- =====================================================================
 
--- Stats de carrera por jugador (grano: player_id[, scope]).
+-- Career stats per player (grain: player_id[, scope]).
 CREATE TABLE IF NOT EXISTS player_career_stats (
     player_id   TEXT NOT NULL,   -- == Link / Players.OverviewPage
-    scope       TEXT NOT NULL,   -- 'all' | 'intl_premier' | tier | rol...
-    display_id  TEXT,            -- ID canónico para mostrar
+    scope       TEXT NOT NULL,   -- 'all' | 'intl_premier' | tier | role...
+    display_id  TEXT,            -- canonical ID for display
     games       INTEGER,
     wins        INTEGER,
     losses      INTEGER,
@@ -164,35 +164,35 @@ CREATE TABLE IF NOT EXISTS player_career_stats (
     PRIMARY KEY (player_id, scope)
 );
 
--- Leaderboards rankeados y precomputados (una fila por posición de un board).
+-- Ranked, precomputed leaderboards (one row per position of a board).
 CREATE TABLE IF NOT EXISTS leaderboards (
     stat        TEXT NOT NULL,   -- 'career_kda' | 'games_played' | 'career_kills' | 'win_rate' | 'intl_titles' | 'worlds_titles'
-    scope       TEXT NOT NULL,   -- 'all' | 'intl_premier' | rol | ...
+    scope       TEXT NOT NULL,   -- 'all' | 'intl_premier' | role | ...
     rank        INTEGER NOT NULL,
     player_id   TEXT NOT NULL,
     display_id  TEXT,
-    value       REAL,            -- valor de la métrica (para conteos, entero en REAL)
-    games       INTEGER,         -- muestra (para mostrar el umbral inline)
+    value       REAL,            -- metric value (for counts, integer stored as REAL)
+    games       INTEGER,         -- sample (to show the threshold inline)
     PRIMARY KEY (stat, scope, rank)
 );
 CREATE INDEX IF NOT EXISTS idx_lb_player ON leaderboards(player_id);
 
--- Récords singleton ("record book"): el top-1 de cada récord con su contexto.
+-- Singleton records ("record book"): the top-1 of each record with its context.
 CREATE TABLE IF NOT EXISTS records (
     record_key  TEXT PRIMARY KEY,   -- 'most_intl_titles' | 'best_worlds_kda' | ...
     label       TEXT,
-    ref_id      TEXT,               -- player_id (o game/tournament id) que ostenta el récord
+    ref_id      TEXT,               -- player_id (or game/tournament id) that holds the record
     display_id  TEXT,
     value       REAL,
-    context     TEXT                -- JSON con detalle (torneo, fecha, games, umbral)
+    context     TEXT                -- JSON with detail (tournament, date, games, threshold)
 );
 
--- Índice de jugadores (denormalizado): resolución de slug + header + lista/buscador.
+-- Player index (denormalized): slug resolution + header + list/search.
 CREATE TABLE IF NOT EXISTS player_index (
     player_id     TEXT PRIMARY KEY,   -- == Link
     display_id    TEXT,
-    slug          TEXT,               -- para la URL /players/<slug>
-    name          TEXT,               -- nombre real
+    slug          TEXT,               -- for the URL /players/<slug>
+    name          TEXT,               -- real name
     role          TEXT,
     country       TEXT,
     team          TEXT,
@@ -207,16 +207,16 @@ CREATE TABLE IF NOT EXISTS player_index (
     worlds_appearances INTEGER,
     intl_games    INTEGER,
     kda_intl      REAL,
-    score         INTEGER,     -- Legacy Score (ver aggregate._legacy_score)
-    score_breakdown TEXT,      -- JSON con el desglose de puntos
-    image_filename TEXT,       -- foto de perfil (Leaguepedia Players.Image)
-    image_url     TEXT,        -- URL CDN de la foto (construida por MD5)
-    team_logo_url TEXT         -- URL CDN del logo del equipo actual
+    score         INTEGER,     -- Legacy Score (see aggregate._legacy_score)
+    score_breakdown TEXT,      -- JSON with the points breakdown
+    image_filename TEXT,       -- profile photo (Leaguepedia Players.Image)
+    image_url     TEXT,        -- CDN URL of the photo (built by MD5)
+    team_logo_url TEXT         -- CDN URL of the current team's logo
 );
 CREATE INDEX IF NOT EXISTS idx_pidx_slug  ON player_index(slug);
 CREATE INDEX IF NOT EXISTS idx_pidx_games ON player_index(games);
 
--- Pool de campeones por jugador (para la página de jugador y récords de campeón).
+-- Champion pool per player (for the player page and champion records).
 CREATE TABLE IF NOT EXISTS player_champions (
     player_id TEXT,
     champion  TEXT,
@@ -230,20 +230,20 @@ CREATE TABLE IF NOT EXISTS player_champions (
 );
 CREATE INDEX IF NOT EXISTS idx_pchamp_player ON player_champions(player_id);
 
--- Títulos internacionales ganados por jugador (vitrina de trofeos).
+-- International titles won per player (trophy cabinet).
 CREATE TABLE IF NOT EXISTS player_titles (
     player_id     TEXT,
     overview_page TEXT,
     event         TEXT,
     league        TEXT,
     year          TEXT,
-    team          TEXT,          -- equipo con el que ganó
-    team_logo_url TEXT,          -- URL CDN del logo del equipo
+    team          TEXT,          -- team they won with
+    team_logo_url TEXT,          -- CDN URL of the team's logo
     PRIMARY KEY (player_id, overview_page)
 );
 CREATE INDEX IF NOT EXISTS idx_ptitles_player ON player_titles(player_id);
 
--- Historial de equipos por jugador (derivado del scoreboard: años y partidas).
+-- Team history per player (derived from the scoreboard: years and games).
 CREATE TABLE IF NOT EXISTS player_teams (
     player_id     TEXT,
     team          TEXT,
@@ -255,7 +255,7 @@ CREATE TABLE IF NOT EXISTS player_teams (
 );
 CREATE INDEX IF NOT EXISTS idx_pteams_player ON player_teams(player_id);
 
--- Stats por campeón (a nivel internacional): más jugados / mejor win rate.
+-- Champion stats (international level): most played / best win rate.
 CREATE TABLE IF NOT EXISTS champion_stats (
     champion  TEXT PRIMARY KEY,
     games     INTEGER,
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS champion_stats (
     n_players INTEGER
 );
 
--- Metadatos del ETL (última corrida, versión de esquema, atribución).
+-- ETL metadata (last run, schema version, attribution).
 CREATE TABLE IF NOT EXISTS etl_meta (
     key   TEXT PRIMARY KEY,
     value TEXT

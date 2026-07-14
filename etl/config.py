@@ -1,7 +1,7 @@
-"""Configuración del ETL: specs de tablas Cargo -> SQLite, tiers y constantes.
+"""ETL configuration: Cargo -> SQLite table specs, tiers and constants.
 
-Las columnas SQLite de la capa silver se llaman igual que los campos de Cargo,
-así el loader inserta los row-dicts sin mapeo. Ver db/schema.sql.
+The silver-layer SQLite columns are named the same as the Cargo fields, so the
+loader inserts the row-dicts without mapping. See db/schema.sql.
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# --- Rutas ---------------------------------------------------------------
+# --- Paths ---------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
@@ -18,10 +18,10 @@ SCHEMA_PATH = ROOT / "db" / "schema.sql"
 STATE_PATH = ROOT / "etl" / "state" / "watermarks.json"
 
 
-# --- Carga de .env (sin dependencias) ------------------------------------
+# --- .env loading (no dependencies) --------------------------------------
 def load_dotenv(path: Path = ROOT / ".env") -> list[str]:
-    """Puebla os.environ desde un .env en la raíz. Tolera 'export', comillas,
-    comentarios y CRLF. No pisa variables ya definidas. Devuelve las claves cargadas."""
+    """Populates os.environ from a .env in the root. Tolerates 'export', quotes,
+    comments and CRLF. Does not override already-defined variables. Returns the loaded keys."""
     loaded: list[str] = []
     if not path.exists():
         return loaded
@@ -44,31 +44,31 @@ def load_dotenv(path: Path = ROOT / ".env") -> list[str]:
 
 load_dotenv()
 
-# --- API / cliente -------------------------------------------------------
+# --- API / client --------------------------------------------------------
 WIKI = "lol"
-# User-Agent descriptivo con contacto (buena ciudadanía; la API anónima limita fuerte).
+# Descriptive User-Agent with contact (good citizenship; the anonymous API limits hard).
 USER_AGENT = "lol-pro-stats/0.1 (https://github.com/; contact: federicoterpin@gmail.com)"
-# Cap por página: 500 anónimo, 5000 con cuenta de bot logueada.
+# Per-page cap: 500 anonymous, 5000 with a logged-in bot account.
 PAGE_SIZE_ANON = 500
 PAGE_SIZE_BOT = 5000
-# Throttle ADAPTATIVO (AIMD). Leaguepedia usa un token-bucket (~4-5) que se rellena
-# lento, y golpearlo mientras estás limitado EXTIENDE el castigo. Por eso: partir de
-# un intervalo conservador, subirlo agresivo ante rate-limit y bajarlo despacio en éxito,
-# y ante rate-limit esperar QUIETO (sin reintentos ansiosos). Con 'noratelimit' (grupo
-# bot) el intervalo va a 0.
-MIN_REQUEST_INTERVAL = 5.0   # piso del intervalo adaptativo (cuenta sin noratelimit)
-MAX_INTERVAL = 30.0          # techo del intervalo adaptativo
-MAX_RETRIES = 10             # paciente: no abandonar el backfill por rate-limit
-RATELIMIT_COOLDOWN = 25.0    # espera quieta base ante 'ratelimited' (crece por intento)
-MAX_LAG = 5                  # honrar maxlag del servidor
+# ADAPTIVE throttle (AIMD). Leaguepedia uses a token-bucket (~4-5) that refills slowly,
+# and hitting it while you are limited EXTENDS the penalty. Hence: start from a
+# conservative interval, raise it aggressively on rate-limit and lower it slowly on
+# success, and on rate-limit wait QUIETLY (no eager retries). With 'noratelimit' (bot
+# group) the interval goes to 0.
+MIN_REQUEST_INTERVAL = 5.0   # floor of the adaptive interval (account without noratelimit)
+MAX_INTERVAL = 30.0          # ceiling of the adaptive interval
+MAX_RETRIES = 10             # patient: do not give up the backfill over rate-limit
+RATELIMIT_COOLDOWN = 25.0    # base quiet wait on 'ratelimited' (grows per attempt)
+MAX_LAG = 5                  # honor the server's maxlag
 
 # --- Tiers ---------------------------------------------------------------
-# Strings de League verificados en vivo (Fase 0): el Mundial es 'World Championship'
-# (NO 'Worlds'); MSI es 'Mid-Season Invitational'; el nuevo evento es 'First Stand'.
-# Region='International' confirmado. Rift Rivals/All-Star usan nombres por año
-# (p.ej. 'All-Star 2014 Paris', 'Rift Rivals 2017 NA-EU') -> clasificar por substring.
+# League strings verified live (Phase 0): the World Championship is 'World Championship'
+# (NOT 'Worlds'); MSI is 'Mid-Season Invitational'; the new event is 'First Stand'.
+# Region='International' confirmed. Rift Rivals/All-Star use per-year names
+# (e.g. 'All-Star 2014 Paris', 'Rift Rivals 2017 NA-EU') -> classify by substring.
 PREMIER_LEAGUES = {"World Championship", "Mid-Season Invitational", "First Stand"}
-# Substrings (lowercase) que marcan exhibición dentro de eventos internacionales.
+# Substrings (lowercase) that mark an exhibition within international events.
 EXHIBITION_SUBSTRINGS = ("all-star", "mid-season cup", "showmatch", "nexus blitz",
                           "legends match", "showtime")
 INTERNATIONAL_REGION = "International"
@@ -79,18 +79,18 @@ def _truthy(v) -> bool:
 
 
 def classify_tier(league, region, is_playoffs, is_qualifier=None, tournament_level=None) -> str:
-    """Clasifica un torneo en uno de los 5 tiers. Ver plan §4.
+    """Classifies a tournament into one of the 5 tiers. See plan §4.
 
-    Premier = match exacto (drive del récord headline). El resto de eventos con
-    Region='International' cae en intl_legacy salvo exhibiciones (por substring).
-    Los regionales se parten por el flag IsPlayoffs.
+    Premier = exact match (drives the headline record). The rest of the events with
+    Region='International' fall into intl_legacy except exhibitions (by substring).
+    Regional ones are split by the IsPlayoffs flag.
     """
     league = (league or "").strip()
     region = (region or "").strip()
     low = league.lower()
     is_intl = region == INTERNATIONAL_REGION
-    # OJO: los qualifiers/regional finals de Worlds llevan League='World Championship'
-    # pero Region regional (Europe/Korea/...) -> NO son intl_premier. Exigir ambos.
+    # NOTE: Worlds qualifiers/regional finals carry League='World Championship' but a
+    # regional Region (Europe/Korea/...) -> they are NOT intl_premier. Require both.
     if is_intl and league in PREMIER_LEAGUES:
         return "intl_premier"
     if is_intl:
@@ -102,18 +102,18 @@ def classify_tier(league, region, is_playoffs, is_qualifier=None, tournament_lev
     return "regional_regular"
 
 
-# --- Specs de tablas -----------------------------------------------------
+# --- Table specs ---------------------------------------------------------
 @dataclass
 class TableSpec:
-    name: str                       # tabla silver en SQLite
-    cargo_table: str                # tabla Cargo de origen
-    fields: list[str]               # campos Cargo (== columnas SQLite)
+    name: str                       # silver table in SQLite
+    cargo_table: str                # source Cargo table
+    fields: list[str]               # Cargo fields (== SQLite columns)
     pk: list[str] = field(default_factory=list)
     int_fields: set[str] = field(default_factory=set)
     float_fields: set[str] = field(default_factory=set)
     bool_fields: set[str] = field(default_factory=set)
-    date_field: str | None = None   # para incremental/watermark
-    scope_field: str | None = None  # campo para filtrar por torneo (slice)
+    date_field: str | None = None   # for incremental/watermark
+    scope_field: str | None = None  # field to filter by tournament (slice)
     order_by: str | None = None
 
     @property
@@ -158,7 +158,7 @@ TABLES: dict[str, TableSpec] = {
                 "IsRetired", "IsSubstitute", "Image"],
         pk=["OverviewPage"],
         bool_fields={"IsRetired", "IsSubstitute"},
-        scope_field="OverviewPage",   # filtrar por lista de Links
+        scope_field="OverviewPage",   # filter by list of Links
     ),
     "player_redirects": TableSpec(
         name="player_redirects", cargo_table="PlayerRedirects",
@@ -170,7 +170,7 @@ TABLES: dict[str, TableSpec] = {
         name="tournament_results", cargo_table="TournamentResults",
         fields=["OverviewPage", "Event", "Place", "Place_Number", "Team", "RosterPage",
                 "PageAndTeam", "Prize", "Qualified"],
-        pk=[],  # UNIQUE compuesto en el schema
+        pk=[],  # composite UNIQUE in the schema
         int_fields={"Place_Number"},
         bool_fields={"Qualified"},
         scope_field="OverviewPage",
@@ -179,19 +179,19 @@ TABLES: dict[str, TableSpec] = {
         name="tournament_players", cargo_table="TournamentPlayers",
         fields=["OverviewPage", "Team", "Link", "Player", "Role", "PageAndTeam",
                 "N_PlayerInTeam", "TeamOrder"],
-        pk=[],  # UNIQUE compuesto en el schema
+        pk=[],  # composite UNIQUE in the schema
         int_fields={"N_PlayerInTeam", "TeamOrder"},
         scope_field="OverviewPage",
     ),
 }
 
-# Orden de carga (por dependencias lógicas, no FK).
+# Load order (by logical dependencies, not FK).
 LOAD_ORDER = [
     "tournaments", "scoreboard_games", "scoreboard_players",
     "tournament_results", "tournament_players", "players", "player_redirects",
 ]
 
-# Umbrales mínimos de muestra (games) por leaderboard. Ver plan §4.
+# Minimum sample thresholds (games) per leaderboard. See plan §4.
 THRESHOLDS = {
     "career_kda": 200,
     "career_kda_intl": 30,

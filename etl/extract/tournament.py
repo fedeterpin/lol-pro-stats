@@ -1,4 +1,4 @@
-"""Extracción por torneo (reutilizada por run.py y backfill.py)."""
+"""Per-tournament extraction (reused by run.py and backfill.py)."""
 from __future__ import annotations
 
 import sqlite3
@@ -6,7 +6,7 @@ import sqlite3
 from etl import config, db
 from etl.clients.cargo import CargoSource, cargo_escape
 
-# Tablas scoped por OverviewPage (se extraen por torneo).
+# Tables scoped by OverviewPage (extracted per tournament).
 SCOPED_TABLES = ["tournaments", "scoreboard_games", "scoreboard_players",
                  "tournament_results", "tournament_players"]
 
@@ -23,9 +23,9 @@ def _chunked(items: list[str], size: int):
 
 def extract_tournament(src: CargoSource, conn: sqlite3.Connection, overview_page: str,
                        with_players: bool = True, verbose: bool = True) -> dict:
-    """Extrae y carga las tablas scoped de un torneo. Si with_players, además trae
-    Players/PlayerRedirects de los jugadores que aparecieron (útil para un slice
-    aislado; en el backfill conviene traer las dims en bloque con fetch_players_for_links)."""
+    """Extracts and loads a tournament's scoped tables. If with_players, it also fetches
+    Players/PlayerRedirects for the players that appeared (useful for an isolated slice;
+    in the backfill it is better to fetch the dims in bulk with fetch_players_for_links)."""
     counts: dict[str, int] = {}
     op_where = f'OverviewPage="{cargo_escape(overview_page)}"'
 
@@ -34,7 +34,7 @@ def extract_tournament(src: CargoSource, conn: sqlite3.Connection, overview_page
         rows = src.extract_table(spec, where=op_where, store_key=overview_page)
         counts[name] = db.upsert_rows(conn, spec, rows)
         if verbose:
-            print(f"  · {name:20s} {counts[name]:6d} filas")
+            print(f"  · {name:20s} {counts[name]:6d} rows")
 
     if with_players:
         links = _distinct_links(conn, overview_page)
@@ -55,7 +55,7 @@ def _distinct_links(conn: sqlite3.Connection, overview_page: str | None = None) 
 def fetch_players_for_links(src: CargoSource, conn: sqlite3.Connection, links: list[str],
                             store_key: str = "links", skip_existing: bool = False,
                             verbose: bool = True) -> dict:
-    """Trae Players + PlayerRedirects para una lista de Links (canónicos), en chunks."""
+    """Fetches Players + PlayerRedirects for a list of (canonical) Links, in chunks."""
     if skip_existing:
         have = {r["OverviewPage"] for r in conn.execute(
             "SELECT OverviewPage FROM players").fetchall()}
@@ -70,5 +70,5 @@ def fetch_players_for_links(src: CargoSource, conn: sqlite3.Connection, links: l
             total += db.upsert_rows(conn, spec, rows)
         counts[name] = total
         if verbose:
-            print(f"  · {name:20s} {counts[name]:6d} filas  (de {len(links)} jugadores)")
+            print(f"  · {name:20s} {counts[name]:6d} rows  (from {len(links)} players)")
     return counts

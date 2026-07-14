@@ -1,5 +1,5 @@
-"""Produce una SQLite 'slim' con solo las tablas GOLD (las que lee la web) a partir
-de la DB del ETL. Mucho más chica -> se commitea y sirve para el build de Cloudflare.
+"""Produce a 'slim' SQLite with only the GOLD tables (the ones the web reads) from
+the ETL DB. Much smaller -> it gets committed and serves the Cloudflare build.
 
     python -m etl.build_web_db
 """
@@ -11,7 +11,7 @@ import sqlite3
 from etl import config
 
 WEB_DB = config.DATA_DIR / "web.sqlite"
-# Silver (scoreboard, etc.): las usa el ETL para computar gold, la web no.
+# Silver (scoreboard, etc.): the ETL uses them to compute gold, the web does not.
 DROP_TABLES = ["scoreboard_players", "scoreboard_games", "players",
                "player_redirects", "tournaments", "tournament_results",
                "tournament_players"]
@@ -26,7 +26,7 @@ def main() -> None:
     conn = sqlite3.connect(WEB_DB)
     for t in DROP_TABLES:
         conn.execute(f"DROP TABLE IF EXISTS {t}")
-    # los checkpoints del ETL no sirven en la web
+    # the ETL checkpoints are not useful in the web
     conn.execute("""DELETE FROM etl_meta WHERE key LIKE 'loaded:%' OR key LIKE 'sweep:%'
                     OR key LIKE 'month:%' OR key LIKE 'meta:%' OR key LIKE 'year:%'""")
     conn.commit()

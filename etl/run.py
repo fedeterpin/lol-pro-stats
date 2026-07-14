@@ -1,8 +1,8 @@
-"""Orquestador del ETL para un SLICE de un torneo (desarrollo/verificación).
+"""ETL orchestrator for a SLICE of a tournament (development/verification).
 
     python -m etl.run --tournament "2025 First Stand" --fresh
 
-Para el backfill masivo (todas las regiones desde 2011) ver `python -m etl.backfill`.
+For the massive backfill (all regions since 2011) see `python -m etl.backfill`.
 """
 from __future__ import annotations
 
@@ -17,11 +17,11 @@ from etl.transform import aggregate
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="ETL LoL Pro Stats (slice por torneo)")
+    ap = argparse.ArgumentParser(description="ETL LoL Pro Stats (slice per tournament)")
     ap.add_argument("--tournament", default="2025 First Stand",
-                    help="OverviewPage del torneo a extraer")
+                    help="OverviewPage of the tournament to extract")
     ap.add_argument("--db", default=str(config.DB_PATH))
-    ap.add_argument("--fresh", action="store_true", help="recrear el esquema desde cero")
+    ap.add_argument("--fresh", action="store_true", help="recreate the schema from scratch")
     args = ap.parse_args()
 
     db_path = Path(args.db)
@@ -33,10 +33,10 @@ def main() -> None:
     db.apply_schema(conn)
 
     src = CargoSource()
-    print(f"[extract] torneo: {args.tournament}")
+    print(f"[extract] tournament: {args.tournament}")
     extract_tournament(src, conn, args.tournament)
 
-    print("[transform] agregando gold tables…")
+    print("[transform] aggregating gold tables…")
     aggregate.run_all(conn)
 
     db.set_meta(conn, "attribution_leaguepedia", config.ATTRIBUTION["leaguepedia"])
@@ -45,7 +45,7 @@ def main() -> None:
 
 
 def _summary(conn: sqlite3.Connection) -> None:
-    print("\n[resumen]")
+    print("\n[summary]")
     for tbl in ["scoreboard_players", "scoreboard_games", "players",
                 "player_career_stats", "leaderboards", "records"]:
         n = conn.execute(f"SELECT COUNT(*) AS c FROM {tbl}").fetchone()["c"]

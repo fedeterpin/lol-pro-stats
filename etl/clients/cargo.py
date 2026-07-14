@@ -1,10 +1,9 @@
-"""Cliente Cargo sobre mwcleric: paginación manual + throttle + backoff + bronze.
+"""Cargo client on top of mwcleric: manual pagination + throttle + backoff + bronze.
 
-mwcleric.CargoClient.query auto-pagina pero no throttlea ni reintenta ante
-'ratelimited' (y un fallo a mitad pierde el progreso). Acá paginamos por página
-(limit=page_size desactiva auto_continue), serializamos, hacemos backoff exponencial
-y persistimos cada pull crudo (bronze) en gzip para poder reconstruir sin re-pegarle
-a la API.
+mwcleric.CargoClient.query auto-paginates but does not throttle or retry on
+'ratelimited' (and a failure mid-way loses the progress). Here we paginate page by page
+(limit=page_size disables auto_continue), serialize, do exponential backoff and persist
+each raw pull (bronze) as gzip so we can rebuild without hitting the API again.
 """
 from __future__ import annotations
 
@@ -25,8 +24,8 @@ RETRYABLE_CODES = {"ratelimited", "maxlag", "readonly", "internal_api_error_DBQu
 
 
 def normalize_keys(row: dict) -> dict:
-    """Cargo devuelve field names con espacios (Foo_Bar -> 'Foo Bar'). Los volvemos
-    a guión bajo para que calcen con los nombres de campo pedidos."""
+    """Cargo returns field names with spaces (Foo_Bar -> 'Foo Bar'). We turn them
+    back into underscores so they match the requested field names."""
     return {k.replace(" ", "_"): v for k, v in row.items()}
 
 
@@ -35,15 +34,15 @@ class CargoSource:
                  min_interval: float = config.MIN_REQUEST_INTERVAL):
         self.wiki = wiki
         self.raw_dir = raw_dir or config.RAW_DIR
-        self.min_interval = min_interval      # piso del intervalo adaptativo
-        self._interval = min_interval         # intervalo actual (AIMD)
+        self.min_interval = min_interval      # floor of the adaptive interval
+        self._interval = min_interval         # current interval (AIMD)
         self._last_request_ts = 0.0
         self._client: EsportsClient | None = None
         self._authed = False
         self._has_apihighlimits = False
         self._no_ratelimit = False
 
-    # -- conexión (lazy) --------------------------------------------------
+    # -- connection (lazy) ------------------------------------------------
     @property
     def client(self) -> EsportsClient:
         if self._client is None:
@@ -57,24 +56,24 @@ class CargoSource:
         if user and pwd:
             creds = AuthCredentials(username=user, password=pwd)
             self._authed = True
-        # El fork de mwcleric expone `user_agent` (lo mapea a clients_useragent
-        # internamente); max_lag fluye por **kwargs hasta mwclient.Site.
+        # The mwcleric fork exposes `user_agent` (it maps it to clients_useragent
+        # internally); max_lag flows through **kwargs down to mwclient.Site.
         client = EsportsClient(
             self.wiki,
             credentials=creds,
             user_agent=config.USER_AGENT,
             max_lag=config.MAX_LAG,
         )
-        # El tope real de cargoquery depende de apihighlimits (500 sin, 5000 con).
-        # Lo detectamos de los rights de la sesión para elegir el page_size correcto
-        # (evita el warning "must be between 1 and 500" y una query vacía extra).
+        # The real cargoquery cap depends on apihighlimits (500 without, 5000 with).
+        # We detect it from the session rights to pick the right page_size
+        # (avoids the "must be between 1 and 500" warning and an extra empty query).
         try:
             info = client.cargo_client.client.api(
                 "query", meta="userinfo", uiprop="rights", format="json")
             rights = info.get("query", {}).get("userinfo", {}).get("rights", [])
             self._has_apihighlimits = "apihighlimits" in rights
             self._no_ratelimit = "noratelimit" in rights
-            if self._no_ratelimit:      # grupo bot: sin throttle
+            if self._no_ratelimit:      # bot group: no throttle
                 self._interval = 0.0
         except Exception:
             self._has_apihighlimits = False
@@ -84,9 +83,9 @@ class CargoSource:
     def page_size(self) -> int:
         return config.PAGE_SIZE_BOT if self._has_apihighlimits else config.PAGE_SIZE_ANON
 
-    # -- throttle / backoff adaptativo (AIMD) ----------------------------
+    # -- adaptive throttle / backoff (AIMD) ------------------------------
     def _throttle(self) -> None:
-        if self._interval <= 0:            # noratelimit: sin throttle
+        if self._interval <= 0:            # noratelimit: no throttle
             return
         elapsed = time.monotonic() - self._last_request_ts
         if elapsed < self._interval:
@@ -94,20 +93,20 @@ class CargoSource:
         self._last_request_ts = time.monotonic()
 
     def _decay_interval(self) -> None:
-        """Éxito: bajar despacio el intervalo hacia el piso (additive-ish / multiplicative)."""
+        """Success: slowly lower the interval toward the floor (additive-ish / multiplicative)."""
         if not self._no_ratelimit and self._interval > self.min_interval:
             self._interval = max(self.min_interval, self._interval * 0.9)
 
     def _grow_interval(self) -> None:
-        """Rate-limit: subir agresivo el intervalo (hasta el techo)."""
+        """Rate-limit: raise the interval aggressively (up to the ceiling)."""
         if not self._no_ratelimit:
             self._interval = min(config.MAX_INTERVAL, max(self._interval, 2.0) * 1.5)
 
     def _query_page(self, *, tables, fields, where=None, join_on=None,
                     group_by=None, order_by=None, limit=None, offset=0) -> list[dict]:
-        # Llamada CRUDA a cargoquery: evita el retry recursivo/rápido del fork de
-        # mwcleric (martilla el rate-limit y extiende el castigo). Nuestro backoff
-        # adaptativo y paciente maneja 'ratelimited'.
+        # RAW call to cargoquery: avoids the recursive/fast retry of the mwcleric fork
+        # (it hammers the rate-limit and extends the penalty). Our patient, adaptive
+        # backoff handles 'ratelimited'.
         data = {"tables": tables, "fields": fields, "format": "json"}
         if join_on:
             data["join_on"] = join_on
@@ -128,8 +127,8 @@ class CargoSource:
             try:
                 resp = site.api("cargoquery", **data)
                 self._decay_interval()
-                # Cargo devuelve las keys con espacios (DateTime_UTC -> 'DateTime UTC').
-                # Normalizamos a guión bajo para que calcen con los nombres de campo.
+                # Cargo returns the keys with spaces (DateTime_UTC -> 'DateTime UTC').
+                # We normalize to underscore so they match the field names.
                 return [normalize_keys(item["title"]) for item in resp.get("cargoquery", [])]
             except APIError as e:
                 code = getattr(e, "code", "")
@@ -137,22 +136,23 @@ class CargoSource:
                     raise
                 last_err = e
                 self._grow_interval()
-                # Esperar QUIETO (sin reintentos ansiosos que extienden el castigo).
+                # Wait QUIETLY (no eager retries that extend the penalty).
                 wait = min(90.0, config.RATELIMIT_COOLDOWN * (attempt + 1))
-                print(f"    [cargo] {code}; intervalo->{self._interval:.0f}s; "
-                      f"espera quieta {wait:.0f}s ({attempt + 1}/{config.MAX_RETRIES})")
+                print(f"    [cargo] {code}; interval->{self._interval:.0f}s; "
+                      f"quiet wait {wait:.0f}s ({attempt + 1}/{config.MAX_RETRIES})")
                 time.sleep(wait)
-        raise RuntimeError(f"Cargo query agotó reintentos: {last_err}")
+        raise RuntimeError(f"Cargo query exhausted retries: {last_err}")
 
-    # -- API pública ------------------------------------------------------
+    # -- public API -------------------------------------------------------
     def query(self, *, tables: str, fields: Iterable[str] | str, where: str | None = None,
               join_on: str | None = None, group_by: str | None = None,
               order_by: str | None = None) -> list[dict]:
-        """Query paginada completa (todas las páginas)."""
+        """Full paginated query (all pages)."""
         if not isinstance(fields, str):
             fields = ", ".join(fields)
-        # page_size ya es el tope real del server (500 sin apihighlimits, 5000 con) ->
-        # un page más corto que ps es el último. Avanzamos por len(page) por robustez.
+        # page_size is already the server's real cap (500 without apihighlimits, 5000
+        # with) -> a page shorter than ps is the last one. We advance by len(page) for
+        # robustness.
         ps = self.page_size
         rows: list[dict] = []
         offset = 0
@@ -170,7 +170,7 @@ class CargoSource:
 
     def extract_table(self, spec: config.TableSpec, where: str | None = None,
                       store_key: str | None = None) -> list[dict]:
-        """Extrae una tabla silver según su spec, filtrando por `where`, y guarda bronze."""
+        """Extracts a silver table according to its spec, filtering by `where`, and stores bronze."""
         rows = self.query(
             tables=spec.cargo_table,
             fields=spec.fields,
@@ -198,5 +198,5 @@ def _slug(text: str) -> str:
 
 
 def cargo_escape(value: str) -> str:
-    """Escapa un valor para un `where` de Cargo (comillas simples)."""
+    """Escapes a value for a Cargo `where` clause (single quotes)."""
     return value.replace("\\", "\\\\").replace("'", "\\'")

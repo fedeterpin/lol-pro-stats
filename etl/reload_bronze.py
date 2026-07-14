@@ -1,9 +1,10 @@
-"""Reprocesa el bronze (JSON crudo) hacia la DB normalizando las keys de Cargo
-(espacios -> guión bajo). Recupera los campos con '_' (DateTime_UTC, Gamelength_Number,
-Place_Number, N_PlayerInTeam) que quedaron NULL por el bug del parser, SIN re-crawlear.
+"""Reprocesses the bronze (raw JSON) into the DB, normalizing the Cargo keys
+(spaces -> underscore). Recovers the '_' fields (DateTime_UTC, Gamelength_Number,
+Place_Number, N_PlayerInTeam) that ended up NULL due to the parser bug, WITHOUT
+re-crawling.
 
-Solo recarga las tablas afectadas (las que tienen campos con '_'); NO toca players
-(para preservar players.Image que setea fetch_images).
+Only reloads the affected tables (the ones with '_' fields); does NOT touch players
+(to preserve players.Image that fetch_images sets).
 
     python -m etl.reload_bronze
 """
@@ -15,7 +16,7 @@ import json
 from etl import config, db
 from etl.clients.cargo import normalize_keys
 
-# Tablas con campos que llevan '_' en el nombre (se rompían con el bug).
+# Tables with fields carrying '_' in the name (they broke with the bug).
 RELOAD_TABLES = ["scoreboard_games", "scoreboard_players",
                  "tournament_results", "tournament_players"]
 
@@ -33,9 +34,9 @@ def main() -> None:
                 rows = json.load(fh)
             rows = [normalize_keys(r) for r in rows]
             total += db.upsert_rows(conn, spec, rows)
-        print(f"  {name:22s} {total:7d} filas desde {len(files)} archivos bronze")
+        print(f"  {name:22s} {total:7d} rows from {len(files)} bronze files")
     conn.close()
-    print("[reload] listo — campos con '_' recuperados desde bronze")
+    print("[reload] done — '_' fields recovered from bronze")
 
 
 if __name__ == "__main__":

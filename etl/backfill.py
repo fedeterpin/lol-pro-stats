@@ -1,20 +1,20 @@
-"""Backfill masivo desde Leaguepedia Cargo.
+"""Massive backfill from Leaguepedia Cargo.
 
-Dos modos:
-  · tournaments (default): descubre Tournaments por filtros y los carga uno por uno,
-    con checkpoint reanudable (etl_meta 'loaded:<OverviewPage>'). Ideal para backfills
-    acotados/targeted y para testear sin agotar el rate-limit.
-  · full: para el backfill histórico completo. Trae dimensiones (Players, PlayerRedirects)
-    en barrido completo, los scoreboards por AÑO (menos queries que por torneo), y
-    tournament_results/players por torneo descubierto.
+Two modes:
+  · tournaments (default): discovers Tournaments by filters and loads them one by one,
+    with a resumable checkpoint (etl_meta 'loaded:<OverviewPage>'). Ideal for bounded/
+    targeted backfills and for testing without exhausting the rate-limit.
+  · full: for the complete historical backfill. Fetches dimensions (Players,
+    PlayerRedirects) in a full sweep, the scoreboards by YEAR (fewer queries than per
+    tournament), and tournament_results/players per discovered tournament.
 
-Ejemplos:
+Examples:
   python -m etl.backfill --leagues LEC --years 2024 --limit 2
   python -m etl.backfill --mode full --year-from 2011
   python -m etl.backfill --leagues "World Championship,Mid-Season Invitational,First Stand"
 
-⚠️ El full run "todas las regiones desde 2011" necesita cuenta de bot (ver README):
-   sin ella el rate-limit anónimo lo hace impracticablemente lento.
+WARNING: The full run "all regions since 2011" needs a bot account (see README):
+   without it the anonymous rate-limit makes it impractically slow.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from etl.transform import aggregate
 # ---------------------------------------------------------------------------
 def discover_tournaments(src: CargoSource, leagues=None, years=None, regions=None,
                          year_from=None, official_only=False) -> list[dict]:
-    """Descubre torneos (Tournaments) según filtros. Devuelve dicts ordenados por fecha."""
+    """Discovers tournaments (Tournaments) by filters. Returns dicts sorted by date."""
     conds = []
     if leagues:
         conds.append(_in("League", leagues))
@@ -73,7 +73,7 @@ def backfill_tournaments(src: CargoSource, conn: sqlite3.Connection, ops: list[s
     total = len(ops)
     for i, op in enumerate(ops, 1):
         if resume and _is_loaded(conn, op):
-            print(f"[{i}/{total}] SKIP (ya cargado) {op}")
+            print(f"[{i}/{total}] SKIP (already loaded) {op}")
             continue
         print(f"[{i}/{total}] {op}")
         extract_tournament(src, conn, op, with_players=with_players)
@@ -83,7 +83,7 @@ def backfill_tournaments(src: CargoSource, conn: sqlite3.Connection, ops: list[s
 # ---------------------------------------------------------------------------
 def extract_scoreboards_by_month(src: CargoSource, conn: sqlite3.Connection,
                                  year: int, month: int) -> tuple[int, int]:
-    """Scoreboards de un mes (acota memoria vs un año entero de todas las regiones)."""
+    """Scoreboards for one month (bounds memory vs a whole year of all regions)."""
     start = f"{year}-{month:02d}-01 00:00:00"
     end = f"{year + 1}-01-01 00:00:00" if month == 12 else f"{year}-{month + 1:02d}-01 00:00:00"
     where = f'DateTime_UTC >= "{start}" AND DateTime_UTC < "{end}"'
@@ -97,7 +97,7 @@ def extract_scoreboards_by_month(src: CargoSource, conn: sqlite3.Connection,
 
 def _sweep(src: CargoSource, conn: sqlite3.Connection, name: str, where: str | None = None,
            resume: bool = True) -> None:
-    """Barrido completo de una tabla (mucho más eficiente que iterar por torneo)."""
+    """Full sweep of a table (much more efficient than iterating per tournament)."""
     if resume and _is_loaded(conn, f"sweep:{name}"):
         print(f"  SKIP sweep {name}")
         return
@@ -105,27 +105,27 @@ def _sweep(src: CargoSource, conn: sqlite3.Connection, name: str, where: str | N
     rows = src.extract_table(spec, where=where, store_key=f"sweep_{name}")
     n = db.upsert_rows(conn, spec, rows)
     db.set_meta(conn, f"sweep:{name}", "1")
-    print(f"  · {name:20s} {n:6d} filas (sweep)")
+    print(f"  · {name:20s} {n:6d} rows (sweep)")
 
 
 def run_full(src: CargoSource, conn: sqlite3.Connection, year_from: int, year_to: int) -> None:
-    """Backfill histórico completo con barridos en bloque + scoreboards por año.
+    """Complete historical backfill with bulk sweeps + scoreboards by year.
 
-    Muchísimas menos queries que iterar por torneo: dims/resultados en 5 barridos
-    paginados, y las 2 tablas grandes (scoreboards) troceadas por año. Todo con
-    checkpoints reanudables (sweep:<t>, year:<y>)."""
-    print(f"[full] dimensiones + resultados (barrido completo)…")
-    # Tournaments es chico (~miles de filas): barrido completo sin filtrar por año,
-    # así todos los torneos quedan con su tier (evita que el checkpoint deje años
-    # viejos sin clasificar si se corre primero un rango parcial). year_from solo
-    # acota los scoreboards (las tablas grandes).
+    Far fewer queries than iterating per tournament: dims/results in 5 paginated
+    sweeps, and the 2 large tables (scoreboards) chunked by year. All with resumable
+    checkpoints (sweep:<t>, year:<y>)."""
+    print(f"[full] dimensions + results (full sweep)…")
+    # Tournaments is small (~thousands of rows): full sweep without filtering by year,
+    # so every tournament gets its tier (prevents the checkpoint from leaving old years
+    # unclassified if a partial range is run first). year_from only bounds the
+    # scoreboards (the large tables).
     _sweep(src, conn, "tournaments")
     _sweep(src, conn, "tournament_results")
     _sweep(src, conn, "tournament_players")
     _sweep(src, conn, "players")
     _sweep(src, conn, "player_redirects")
 
-    print("[full] scoreboards por mes…")
+    print("[full] scoreboards by month…")
     for year in range(year_from, year_to + 1):
         year_games = year_players = 0
         for month in range(1, 13):
@@ -143,16 +143,16 @@ def run_full(src: CargoSource, conn: sqlite3.Connection, year_from: int, year_to
 def main() -> None:
     ap = argparse.ArgumentParser(description="Backfill Cargo -> SQLite")
     ap.add_argument("--mode", choices=["tournaments", "full"], default="tournaments")
-    ap.add_argument("--leagues", help="lista separada por comas (p.ej. 'LEC,LCK')")
-    ap.add_argument("--regions", help="lista separada por comas")
-    ap.add_argument("--years", help="lista separada por comas (p.ej. '2023,2024')")
-    ap.add_argument("--year-from", type=int, help="año mínimo (>=)")
-    ap.add_argument("--year-to", type=int, default=2026, help="año máximo (modo full)")
-    ap.add_argument("--limit", type=int, help="máximo de torneos a cargar (test)")
-    ap.add_argument("--ops", help="OverviewPages explícitos separados por ';' (salta discovery)")
+    ap.add_argument("--leagues", help="comma-separated list (e.g. 'LEC,LCK')")
+    ap.add_argument("--regions", help="comma-separated list")
+    ap.add_argument("--years", help="comma-separated list (e.g. '2023,2024')")
+    ap.add_argument("--year-from", type=int, help="minimum year (>=)")
+    ap.add_argument("--year-to", type=int, default=2026, help="maximum year (full mode)")
+    ap.add_argument("--limit", type=int, help="max number of tournaments to load (test)")
+    ap.add_argument("--ops", help="explicit OverviewPages separated by ';' (skips discovery)")
     ap.add_argument("--official-only", action="store_true")
-    ap.add_argument("--no-resume", action="store_true", help="recargar aunque estén marcados")
-    ap.add_argument("--discover-only", action="store_true", help="solo listar torneos")
+    ap.add_argument("--no-resume", action="store_true", help="reload even if they are marked")
+    ap.add_argument("--discover-only", action="store_true", help="only list tournaments")
     ap.add_argument("--db", default=str(config.DB_PATH))
     args = ap.parse_args()
 
@@ -164,18 +164,18 @@ def main() -> None:
         run_full(src, conn, args.year_from or 2011, args.year_to)
     elif args.ops:
         ops = [o.strip() for o in args.ops.split(";") if o.strip()]
-        print(f"[ops] {len(ops)} torneos explícitos")
+        print(f"[ops] {len(ops)} explicit tournaments")
         backfill_tournaments(src, conn, ops, resume=not args.no_resume)
     else:
         ops_rows = discover_tournaments(
             src, leagues=args.leagues, regions=args.regions,
             years=(args.years.split(",") if args.years else None),
             year_from=args.year_from, official_only=args.official_only)
-        print(f"[discover] {len(ops_rows)} torneos")
+        print(f"[discover] {len(ops_rows)} tournaments")
         for r in ops_rows[:30]:
             print(f"  - {(r.get('Year') or '?'):>4} | {(r.get('League') or '?'):24s} | {r['OverviewPage']}")
         if len(ops_rows) > 30:
-            print(f"  … (+{len(ops_rows) - 30} más)")
+            print(f"  … (+{len(ops_rows) - 30} more)")
         if args.discover_only:
             conn.close()
             return
@@ -184,10 +184,10 @@ def main() -> None:
             ops = ops[:args.limit]
         backfill_tournaments(src, conn, ops, resume=not args.no_resume)
 
-    print("[transform] agregando gold tables…")
+    print("[transform] aggregating gold tables…")
     aggregate.run_all(conn)
     db.set_meta(conn, "attribution_leaguepedia", config.ATTRIBUTION["leaguepedia"])
-    print("[ok] backfill terminado")
+    print("[ok] backfill finished")
     conn.close()
 
 

@@ -283,6 +283,8 @@ h1 {
   clip-path: var(--cut);
   padding: 6px 4px;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 table.board { min-width: 460px; }
 .board-wrap::before {
@@ -394,6 +396,11 @@ table.board tbody tr:last-child td { border-bottom: none; }
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
+  /* también aplica al <button> de BackLink */
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 .back:hover { color: var(--gold); }
 
@@ -874,6 +881,30 @@ table.board th[data-active="true"] { color: var(--gold-bright); }
 }
 
 @media (max-width: 560px) {
+  .container { padding: 0 16px; }
   .hero { padding: 36px 0 4px; }
-  table.board th, table.board td { padding: 10px 11px; font-size: 13.5px; }
+  .home-hero { padding: 40px 0 28px; }
+
+  /* Tablas: que se encojan a su contenido en vez de forzar 460px de scroll.
+     Con min-width:0 sólo scrollean si el contenido real no entra. */
+  .board-wrap { padding: 4px 2px; }
+  table.board { min-width: 0; }
+  table.board th, table.board td { padding: 9px 9px; font-size: 13px; }
+  table.board th { letter-spacing: 0.06em; }
+  .rank { width: 38px; }
+  .rank span { width: 22px; height: 22px; }
+  .player { font-size: 13.5px; }
+  .val { font-size: 13.5px; }
+
+  /* Controles / chips más compactos y con menos separación */
+  .controls { gap: 7px; margin: 14px 0 12px; }
+  .chip { padding: 8px 12px; font-size: 11px; letter-spacing: 0.07em; }
+  .role-chip { padding: 6px 10px; }
+
+  /* Paneles de la página de jugador con menos padding lateral */
+  .score-panel { padding: 18px 16px; gap: 16px 20px; }
+  .score-num { font-size: 46px; }
+  .score-break { min-width: 100%; }
+  .player-head { gap: 16px; }
+  .portrait { width: 88px; height: 88px; }
 }

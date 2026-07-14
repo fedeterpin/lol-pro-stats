@@ -41,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/leaderboards">Leaderboards</Link>
               <Link href="/players">Players</Link>
               <Link href="/champions">Champions</Link>
-              <Link href="/#records">Records</Link>
+              <Link href="/records">Records</Link>
             </nav>
           </div>
         </header>

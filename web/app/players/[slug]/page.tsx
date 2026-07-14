@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import BackLink from "@/components/BackLink";
 import {
   getPlayerBySlug,
   getPlayerChampions,
@@ -59,9 +60,7 @@ export default async function PlayerPage({
 
   return (
     <>
-      <Link href="/leaderboards" className="back">
-        ← Leaderboards
-      </Link>
+      <BackLink />
 
       <header className="player-head">
         {player.image_url && (

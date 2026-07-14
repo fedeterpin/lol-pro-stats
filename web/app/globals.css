@@ -860,9 +860,20 @@ table.board th[data-active="true"] { color: var(--gold-bright); }
   * { animation: none !important; transition: none !important; }
 }
 
+/* La marca + 5 links en mayúsculas dejan de entrar en una fila cerca de 720px:
+   dejamos que la nav baje a su propio renglón y envuelva sus links. */
+@media (max-width: 720px) {
+  .site-header .inner { flex-wrap: wrap; gap: 10px 20px; padding: 13px 16px; }
+  .nav {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 9px 18px;
+  }
+  .nav a { font-size: 12px; letter-spacing: 0.12em; padding: 4px 2px; }
+}
+
 @media (max-width: 560px) {
-  .site-header .inner { flex-wrap: wrap; gap: 12px 20px; }
-  .nav { margin-left: 0; }
   .hero { padding: 36px 0 4px; }
   table.board th, table.board td { padding: 10px 11px; font-size: 13.5px; }
 }

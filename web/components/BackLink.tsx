@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 
-// "Back" respeta de dónde vino el usuario (search → home, leaderboards →
-// leaderboards, etc.). Si no hay historial dentro del sitio (entrada directa
-// o link compartido) caemos a la home.
+// "Back" respects where the user came from (search → home, leaderboards →
+// leaderboards, etc.). If there's no in-site history (direct entry or shared
+// link) we fall back to home.
 export default function BackLink() {
   const router = useRouter();
   return (

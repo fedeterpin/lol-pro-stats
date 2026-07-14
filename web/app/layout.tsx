@@ -1,16 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Cinzel, Barlow } from "next/font/google";
+import { Space_Grotesk, Inter } from "next/font/google";
 import "./globals.css";
 
-const display = Cinzel({
+// Display: Space Grotesk — modern, geometric, with character in the large numbers.
+// Used ONLY in headings and figures (never in small text, which was the legibility
+// problem of the previous serif).
+const display = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
 
-const body = Barlow({
+// Body/UI: Inter — designed to read crisply at 12-14px, with tabular-nums for data.
+const body = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-body",

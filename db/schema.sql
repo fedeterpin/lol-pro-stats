@@ -273,3 +273,106 @@ CREATE TABLE IF NOT EXISTS etl_meta (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- =====================================================================
+-- Oracle's Elixir (OE) silver — a SECOND source, additive to Leaguepedia.
+-- Adds regional / second-tier league coverage + per-timing economy that
+-- Cargo does not provide. Loaded by `python -m etl.oe_ingest` from the
+-- per-year CSVs in data/raw/oe/. Curated column subset (not all 164).
+-- OE.gameid == Leaguepedia scoreboard_games.RiotPlatformGameId (after
+-- alphanumeric normalization) for overlapping games — see oe_player_link.
+-- =====================================================================
+
+-- One player per game (10 rows/game: participantid 1..10).
+CREATE TABLE IF NOT EXISTS oe_player_games (
+    gameid            TEXT,     -- OE platform game id (e.g. LOLTMNT03_329857)
+    gameid_norm       TEXT,     -- alnum-uppercased, for the Leaguepedia join
+    datacompleteness  TEXT,     -- complete / partial (partial lacks timings)
+    league            TEXT,
+    year              INTEGER,
+    split             TEXT,
+    playoffs          INTEGER,  -- 0 / 1
+    date              TEXT,
+    game              INTEGER,  -- game number within the series
+    patch             TEXT,
+    side              TEXT,     -- Blue / Red
+    position          TEXT,     -- top / jng / mid / bot / sup
+    role_number       INTEGER,  -- 1..5 from position (used by the crosswalk)
+    participantid     INTEGER,
+    playername        TEXT,
+    playerid          TEXT,     -- OE stable player id
+    teamname          TEXT,
+    teamid            TEXT,
+    champion          TEXT,
+    result            INTEGER,  -- 1 win / 0 loss
+    gamelength        INTEGER,  -- seconds
+    kills             INTEGER,
+    deaths            INTEGER,
+    assists           INTEGER,
+    doublekills       INTEGER,
+    triplekills       INTEGER,
+    quadrakills       INTEGER,
+    pentakills        INTEGER,
+    firstblood        INTEGER,
+    damagetochampions INTEGER,
+    dpm               REAL,
+    damageshare       REAL,
+    totalgold         INTEGER,
+    earnedgold        INTEGER,
+    total_cs          INTEGER,
+    cspm              REAL,
+    goldat10          INTEGER,
+    csat10            INTEGER,
+    xpat10            INTEGER,
+    golddiffat10      REAL,
+    csdiffat10        REAL,
+    xpdiffat10        REAL,
+    goldat15          INTEGER,
+    csat15            INTEGER,
+    xpat15            INTEGER,
+    golddiffat15      REAL,
+    csdiffat15        REAL,
+    xpdiffat15        REAL,
+    PRIMARY KEY (gameid, participantid)
+);
+CREATE INDEX IF NOT EXISTS idx_oepg_norm   ON oe_player_games(gameid_norm);
+CREATE INDEX IF NOT EXISTS idx_oepg_player ON oe_player_games(playerid);
+CREATE INDEX IF NOT EXISTS idx_oepg_league ON oe_player_games(league);
+
+-- One team per game (2 rows/game: participantid 100/200, position='team').
+CREATE TABLE IF NOT EXISTS oe_team_games (
+    gameid            TEXT,
+    gameid_norm       TEXT,
+    datacompleteness  TEXT,
+    league            TEXT,
+    year              INTEGER,
+    split             TEXT,
+    playoffs          INTEGER,
+    date              TEXT,
+    game              INTEGER,
+    patch             TEXT,
+    side              TEXT,
+    teamname          TEXT,
+    teamid            TEXT,
+    result            INTEGER,
+    gamelength        INTEGER,
+    kills             INTEGER,  -- team kills
+    deaths            INTEGER,
+    dragons           INTEGER,
+    barons            INTEGER,
+    towers            INTEGER,
+    PRIMARY KEY (gameid, side)
+);
+CREATE INDEX IF NOT EXISTS idx_oetg_norm ON oe_team_games(gameid_norm);
+
+-- Identity crosswalk: OE playerid -> Leaguepedia Link, derived from games
+-- present in BOTH sources by aligning (normalized gameid, side, role) — no
+-- name matching. OE-only (regional) players get link = NULL.
+CREATE TABLE IF NOT EXISTS oe_player_link (
+    playerid    TEXT PRIMARY KEY,  -- OE stable player id
+    link        TEXT,              -- Leaguepedia Link (== Players.OverviewPage); NULL if OE-only
+    playername  TEXT,              -- a representative OE handle
+    n_games     INTEGER,           -- overlapping games backing the mapping
+    n_conflicts INTEGER            -- overlapping games that voted for another Link
+);
+CREATE INDEX IF NOT EXISTS idx_oelink_link ON oe_player_link(link);

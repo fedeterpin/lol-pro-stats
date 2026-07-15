@@ -1,0 +1,252 @@
+"""Ingest Oracle's Elixir (OE) per-year CSVs into the silver layer.
+
+OE is a SECOND source, additive to Leaguepedia: it brings regional / second-tier
+league coverage and per-timing economy that the Cargo API does not provide.
+
+Pipeline:
+  1. Apply schema (idempotent; creates the oe_* tables).
+  2. Stream each data/raw/oe/<YEAR>_..._OraclesElixir.csv into oe_player_games
+     (10 rows/game) and oe_team_games (2 rows/game), keeping a curated subset of
+     the ~164 columns.
+  3. Build oe_player_link: OE playerid -> Leaguepedia Link, derived from games
+     present in BOTH sources. Alignment key is (normalized platform game id,
+     champion) — the champion uniquely identifies a player within a game in
+     either source, so no name matching and no side/role encoding is needed.
+     OE-only (regional) players get link = NULL.
+
+Run: python -m etl.oe_ingest            # all CSVs found in data/raw/oe/
+     python -m etl.oe_ingest --years 2024,2025
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import glob
+import re
+import sys
+from collections import Counter, defaultdict
+
+from etl import config, db
+
+OE_DIR = config.RAW_DIR / "oe"
+
+POS_TO_ROLE = {"top": 1, "jng": 2, "mid": 3, "bot": 4, "sup": 5}
+
+# OE csv column -> curated silver column (player rows). Columns not listed are
+# dropped. Order here defines the INSERT column order (plus the derived cols).
+PLAYER_MAP = {
+    "gameid": "gameid", "datacompleteness": "datacompleteness", "league": "league",
+    "year": "year", "split": "split", "playoffs": "playoffs", "date": "date",
+    "game": "game", "patch": "patch", "side": "side", "position": "position",
+    "participantid": "participantid", "playername": "playername", "playerid": "playerid",
+    "teamname": "teamname", "teamid": "teamid", "champion": "champion",
+    "result": "result", "gamelength": "gamelength",
+    "kills": "kills", "deaths": "deaths", "assists": "assists",
+    "doublekills": "doublekills", "triplekills": "triplekills",
+    "quadrakills": "quadrakills", "pentakills": "pentakills", "firstblood": "firstblood",
+    "damagetochampions": "damagetochampions", "dpm": "dpm", "damageshare": "damageshare",
+    "totalgold": "totalgold", "earnedgold": "earnedgold", "total cs": "total_cs",
+    "cspm": "cspm",
+    "goldat10": "goldat10", "csat10": "csat10", "xpat10": "xpat10",
+    "golddiffat10": "golddiffat10", "csdiffat10": "csdiffat10", "xpdiffat10": "xpdiffat10",
+    "goldat15": "goldat15", "csat15": "csat15", "xpat15": "xpat15",
+    "golddiffat15": "golddiffat15", "csdiffat15": "csdiffat15", "xpdiffat15": "xpdiffat15",
+}
+TEAM_MAP = {
+    "gameid": "gameid", "datacompleteness": "datacompleteness", "league": "league",
+    "year": "year", "split": "split", "playoffs": "playoffs", "date": "date",
+    "game": "game", "patch": "patch", "side": "side", "teamname": "teamname",
+    "teamid": "teamid", "result": "result", "gamelength": "gamelength",
+    "kills": "kills", "deaths": "deaths", "dragons": "dragons", "barons": "barons",
+    "towers": "towers",
+}
+
+INT_COLS = {
+    "year", "playoffs", "game", "participantid", "result", "gamelength", "role_number",
+    "kills", "deaths", "assists", "doublekills", "triplekills", "quadrakills",
+    "pentakills", "firstblood", "damagetochampions", "totalgold", "earnedgold",
+    "total_cs", "goldat10", "csat10", "xpat10", "goldat15", "csat15", "xpat15",
+    "dragons", "barons", "towers",
+}
+FLOAT_COLS = {
+    "dpm", "damageshare", "cspm",
+    "golddiffat10", "csdiffat10", "xpdiffat10",
+    "golddiffat15", "csdiffat15", "xpdiffat15",
+}
+
+PLAYER_COLS = list(PLAYER_MAP.values()) + ["gameid_norm", "role_number"]
+TEAM_COLS = list(TEAM_MAP.values()) + ["gameid_norm"]
+
+BATCH = 5000
+
+
+def norm_id(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "", s or "").upper()
+
+
+def _coerce(col: str, raw):
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if s == "":
+        return None
+    if col in INT_COLS:
+        try:
+            return int(float(s))
+        except ValueError:
+            return None
+    if col in FLOAT_COLS:
+        try:
+            return float(s)
+        except ValueError:
+            return None
+    return s
+
+
+def _row_tuple(cols, src_map, row, gameid_norm, role_number=None):
+    out = []
+    for csv_col, dst in src_map.items():
+        out.append(_coerce(dst, row.get(csv_col)))
+    out.append(gameid_norm)
+    if "role_number" in cols:
+        out.append(role_number)
+    return tuple(out)
+
+
+def load_csvs(conn, years: set[str] | None) -> None:
+    files = sorted(glob.glob(str(OE_DIR / "*_LoL_esports_match_data_from_OraclesElixir.csv")))
+    if years:
+        files = [f for f in files if re.match(r"(\d{4})", f.rsplit("/", 1)[-1]).group(1) in years]
+    if not files:
+        sys.exit(f"No OE CSVs found in {OE_DIR} (years={years or 'all'})")
+
+    p_sql = f"INSERT OR REPLACE INTO oe_player_games ({', '.join(PLAYER_COLS)}) VALUES ({', '.join('?' for _ in PLAYER_COLS)})"
+    t_sql = f"INSERT OR REPLACE INTO oe_team_games ({', '.join(TEAM_COLS)}) VALUES ({', '.join('?' for _ in TEAM_COLS)})"
+
+    for path in files:
+        fname = path.rsplit("/", 1)[-1]
+        pbuf, tbuf, np, nt, skipped = [], [], 0, 0, 0
+        with open(path, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                gid = (row.get("gameid") or "").strip()
+                if not gid:
+                    skipped += 1
+                    continue
+                gnorm = norm_id(gid)
+                pos = (row.get("position") or "").strip().lower()
+                if pos in POS_TO_ROLE:
+                    pbuf.append(_row_tuple(PLAYER_COLS, PLAYER_MAP, row, gnorm, POS_TO_ROLE[pos]))
+                elif pos == "team":
+                    tbuf.append(_row_tuple(TEAM_COLS, TEAM_MAP, row, gnorm))
+                else:
+                    skipped += 1
+                if len(pbuf) >= BATCH:
+                    conn.executemany(p_sql, pbuf); np += len(pbuf); pbuf = []
+                if len(tbuf) >= BATCH:
+                    conn.executemany(t_sql, tbuf); nt += len(tbuf); tbuf = []
+        if pbuf:
+            conn.executemany(p_sql, pbuf); np += len(pbuf)
+        if tbuf:
+            conn.executemany(t_sql, tbuf); nt += len(tbuf)
+        conn.commit()
+        print(f"  {fname}: {np:>7,} player-rows | {nt:>6,} team-rows | {skipped} skipped")
+
+
+def build_crosswalk(conn) -> None:
+    """OE playerid -> Leaguepedia Link via (norm platform game id, champion)."""
+    cur = conn.cursor()
+
+    # Leaguepedia lookup: (norm ppid, norm champion) -> Link
+    lp = {}
+    lp_ppids = set()
+    for ppid, champ, link in cur.execute(
+        "SELECT sg.RiotPlatformGameId, sp.Champion, sp.Link "
+        "FROM scoreboard_players sp JOIN scoreboard_games sg ON sg.GameId = sp.GameId "
+        "WHERE sg.RiotPlatformGameId IS NOT NULL AND sg.RiotPlatformGameId <> '' "
+        "AND sp.Link IS NOT NULL AND sp.Link <> ''"
+    ):
+        n = norm_id(ppid)
+        lp_ppids.add(n)
+        if champ:
+            lp[(n, norm_id(champ))] = link
+
+    # Vote per OE playerid, only scanning OE rows that overlap Leaguepedia.
+    votes: dict[str, Counter] = defaultdict(Counter)
+    names: dict[str, str] = {}
+    for gnorm, champ, pid, pname in cur.execute(
+        "SELECT gameid_norm, champion, playerid, playername FROM oe_player_games "
+        "WHERE playerid IS NOT NULL AND playerid <> ''"
+    ):
+        if pid not in names and pname:
+            names[pid] = pname
+        if gnorm in lp_ppids and champ:
+            link = lp.get((gnorm, norm_id(champ)))
+            if link:
+                votes[pid][link] += 1
+
+    # Every distinct OE playerid gets a row (link NULL when OE-only).
+    all_pids = [r[0] for r in cur.execute(
+        "SELECT DISTINCT playerid FROM oe_player_games WHERE playerid IS NOT NULL AND playerid <> ''")]
+    rows = []
+    mapped = 0
+    for pid in all_pids:
+        v = votes.get(pid)
+        if v:
+            link, n = v.most_common(1)[0]
+            rows.append((pid, link, names.get(pid), n, sum(v.values()) - n))
+            mapped += 1
+        else:
+            rows.append((pid, None, names.get(pid), 0, 0))
+    conn.execute("DELETE FROM oe_player_link")
+    conn.executemany(
+        "INSERT OR REPLACE INTO oe_player_link (playerid, link, playername, n_games, n_conflicts) "
+        "VALUES (?, ?, ?, ?, ?)", rows)
+    conn.commit()
+    print(f"  crosswalk: {len(all_pids):,} OE players | {mapped:,} mapped to a Leaguepedia Link "
+          f"| {len(all_pids) - mapped:,} OE-only")
+
+
+def summary(conn) -> None:
+    cur = conn.cursor()
+    npg = cur.execute("SELECT COUNT(*) FROM oe_player_games").fetchone()[0]
+    ngames = cur.execute("SELECT COUNT(DISTINCT gameid) FROM oe_player_games").fetchone()[0]
+    nleagues = cur.execute("SELECT COUNT(DISTINCT league) FROM oe_player_games").fetchone()[0]
+    overlap = cur.execute(
+        "SELECT COUNT(DISTINCT gameid_norm) FROM oe_player_games WHERE gameid_norm IN "
+        "(SELECT REPLACE(REPLACE(UPPER(RiotPlatformGameId),'_',''),'-','') FROM scoreboard_games "
+        " WHERE RiotPlatformGameId IS NOT NULL)").fetchone()[0]
+    print("\n=== OE silver summary ===")
+    print(f"  player-game rows : {npg:,}")
+    print(f"  distinct games   : {ngames:,}")
+    print(f"  leagues          : {nleagues}")
+    print(f"  games overlapping Leaguepedia (to dedup) : {overlap:,}")
+    conf = cur.execute("SELECT COUNT(*) FROM oe_player_link WHERE n_conflicts > 0").fetchone()[0]
+    print(f"  crosswalk mappings with conflicts        : {conf}")
+    print("\n  spot-check (known players -> mapped Link, support):")
+    for pid, link, pname, ng, nc in cur.execute(
+        "SELECT playerid, link, playername, n_games, n_conflicts FROM oe_player_link "
+        "WHERE link IN ('Faker','Chovy','Zeus (Choi Woo-je)','Keria','Ruler (Park Jae-hyuk)') "
+        "ORDER BY n_games DESC LIMIT 12"):
+        print(f"    {pname:<16} -> {link:<28} ({ng} games, {nc} conflicts)")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Ingest Oracle's Elixir CSVs into the silver layer.")
+    ap.add_argument("--years", help="comma-separated years to load (default: all CSVs present)")
+    ap.add_argument("--no-load", action="store_true", help="skip CSV load, only (re)build the crosswalk")
+    args = ap.parse_args()
+    years = set(args.years.split(",")) if args.years else None
+
+    conn = db.connect()
+    db.apply_schema(conn)
+    if not args.no_load:
+        print("Loading OE CSVs...")
+        load_csvs(conn, years)
+    print("Building identity crosswalk...")
+    build_crosswalk(conn)
+    summary(conn)
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()

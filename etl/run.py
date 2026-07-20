@@ -17,7 +17,7 @@ from etl.transform import aggregate
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="ETL LoL Pro Stats (slice per tournament)")
+    ap = argparse.ArgumentParser(description="smurfeando ETL (slice per tournament)")
     ap.add_argument("--tournament", default="2025 First Stand",
                     help="OverviewPage of the tournament to extract")
     ap.add_argument("--db", default=str(config.DB_PATH))

@@ -47,7 +47,7 @@ load_dotenv()
 # --- API / client --------------------------------------------------------
 WIKI = "lol"
 # Descriptive User-Agent with contact (good citizenship; the anonymous API limits hard).
-USER_AGENT = "lol-pro-stats/0.1 (https://github.com/; contact: federicoterpin@gmail.com)"
+USER_AGENT = "smurfeando/0.1 (https://github.com/; contact: federicoterpin@gmail.com)"
 # Per-page cap: 500 anonymous, 5000 with a logged-in bot account.
 PAGE_SIZE_ANON = 500
 PAGE_SIZE_BOT = 5000

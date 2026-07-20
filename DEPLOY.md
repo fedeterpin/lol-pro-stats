@@ -9,19 +9,22 @@ as a static-assets Worker.
 
 ## Cloudflare setup (one-time)
 When connecting the repo (Workers & Pages → Import a repository):
-- **Project name**: `lol-pro-stats`
+- **Project name**: `smurfeando`
 - **Build command**: `cd web && npm ci && npm run build`
 - **Deploy command**: `npx wrangler deploy` (default — uses `wrangler.jsonc`)
 - Deploy.
 
-The site lives at `https://lol-pro-stats.<subdomain>.workers.dev` (or the domain
-Cloudflare assigns / a custom one).
+The site lives at `https://smurfeando.<subdomain>.workers.dev` (or the domain
+Cloudflare assigns / a custom one). Note: renaming the Worker creates a NEW
+Worker and `workers.dev` subdomain on the next deploy — delete the old
+`lol-pro-stats` Worker manually in the Cloudflare dashboard; the production domain
+will be `smurfeando.gg`.
 
 ## Updating data (after a Worlds/MSI)
 The **`.github/workflows/update-data.yml`** workflow (GitHub Actions, manual dispatch)
 runs the ETL, regenerates `data/web.sqlite` and commits it → the push triggers the
 Cloudflare rebuild. Requires secrets in the GitHub repo:
-- `LEAGUEPEDIA_USERNAME` — `YourUser@lol-pro-stats`
+- `LEAGUEPEDIA_USERNAME` — `YourUser@lol-pro-stats` (the bot-password label predates the rebrand; it names a real Leaguepedia bot password, so renaming it would require creating a new one on `Special:BotPasswords`)
 - `LEAGUEPEDIA_PASSWORD` — the bot password
 
 Or run the ETL locally and push:

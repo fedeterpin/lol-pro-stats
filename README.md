@@ -1,4 +1,6 @@
-# LoL Pro Stats — Records Almanac
+# smurfeando — LoL Records Almanac
+
+*The name is the joke: the ranking exposes pros so dominant it looks like they're smurfing in their own league.*
 
 A **sports-reference**-style site (Basketball-Reference / Transfermarkt) with
 historical statistics of professional League of Legends players: best all-time KDA,

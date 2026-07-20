@@ -45,7 +45,7 @@ const en = {
 
   // --- Home ---
   "home.eyebrow": "League of Legends · Esports almanac",
-  "home.title": "Every pro, every record",
+  "home.title": "Who's smurfing the pro stage?",
   "home.subtitle":
     "Search any professional player to open their profile — smurf score, titles, KDA and champion pool.",
   "home.link.records": "Hall of Records",
@@ -78,7 +78,7 @@ const en = {
   "champions.empty": "No champions above {n} games yet.",
 
   // --- Leaderboards ---
-  "leaderboards.eyebrow": "The main stage, ranked",
+  "leaderboards.eyebrow": "Too good for their own league",
   "leaderboards.title": "Leaderboards",
   "leaderboards.subtitle":
     "Pick a category, filter by role and sort the table. Every record shows its minimum-games threshold to keep it honest.",
@@ -225,7 +225,7 @@ const es: Record<MsgKey, string> = {
   "scope.all": "Todos los roles",
 
   "home.eyebrow": "League of Legends · Récords y estadísticas",
-  "home.title": "Todos los pros, todos los récords",
+  "home.title": "¿Quién está smurfeando?",
   "home.subtitle":
     "Busca cualquier jugador profesional para abrir su perfil: smurf score, títulos, KDA y pool de campeones.",
   "home.link.records": "Salón de los Récords",
@@ -255,7 +255,7 @@ const es: Record<MsgKey, string> = {
   "champions.players": "Jugadores",
   "champions.empty": "Todavía no hay campeones con más de {n} partidas.",
 
-  "leaderboards.eyebrow": "El escenario principal, rankeado",
+  "leaderboards.eyebrow": "Demasiado buenos para su propia liga",
   "leaderboards.title": "Rankings",
   "leaderboards.subtitle":
     "Elige una categoría, filtra por rol y ordena la tabla. Cada récord muestra su mínimo de partidas para que sea honesto.",

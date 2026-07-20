@@ -20,65 +20,66 @@ export default function ChampionTable({ champions }: { champions: ChampionStatRo
     [champions, sort, minGames],
   );
 
-  const header = (key: SortKey, label: string) => (
-    <th
-      className="num"
-      data-active={sort === key}
+  const header = (key: SortKey, label: string, extra = "") => (
+    <button
+      type="button"
+      className={`th-btn th-num${extra}${sort === key ? " active" : ""}`}
       onClick={() => setSort(key)}
-      role="button"
     >
       {label}
       {sort === key ? " ▼" : ""}
-    </th>
+    </button>
   );
 
   return (
     <>
       <div className="controls">
         <span className="ctrl-label">Min. games</span>
-        {MIN_OPTIONS.map((m) => (
-          <button
-            key={m}
-            className="chip role-chip"
-            data-active={m === minGames}
-            onClick={() => setMinGames(m)}
-          >
-            {m}
-          </button>
-        ))}
+        <div className="chips">
+          {MIN_OPTIONS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`chip${m === minGames ? " active" : ""}`}
+              onClick={() => setMinGames(m)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="board-wrap">
-        <table className="board">
-          <thead>
-            <tr>
-              <th>Champion</th>
-              {header("games", "Games")}
-              {header("win_rate", "Win %")}
-              {header("kda", "KDA")}
-              <th className="num">Players</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr key={c.champion}>
-                <td className="champ-cell">
-                  <span
-                    className="champ-icon sm"
-                    style={{ backgroundImage: `url(${championSquare(c.champion)})` }}
-                    aria-hidden="true"
-                  />
-                  <span className="player">{c.champion}</span>
-                </td>
-                <td className="num">{c.games}</td>
-                <td className="num val">{(c.win_rate * 100).toFixed(1)}%</td>
-                <td className="num">{c.kda.toFixed(2)}</td>
-                <td className="num games">{c.n_players}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {rows.length === 0 && <p className="empty">No champions above {minGames} games yet.</p>}
+
+      {rows.length === 0 ? (
+        <p className="empty">No champions above {minGames} games yet.</p>
+      ) : (
+        <div className="tbl tbl-champs">
+          <div className="tbl-head">
+            <span className="th-lab">Champion</span>
+            {header("games", "Games")}
+            {header("win_rate", "Win %")}
+            {header("kda", "KDA", " col-kda")}
+            <span className="th-lab th-num col-players">Players</span>
+          </div>
+          {rows.map((c, i) => (
+            <div className={`tbl-row${i === 0 ? " first" : ""}`} key={c.champion}>
+              <span className="pcell">
+                <span
+                  className="champ-icon"
+                  style={{ backgroundImage: `url(${championSquare(c.champion)})` }}
+                  aria-hidden="true"
+                />
+                <span className="pname">{c.champion}</span>
+              </span>
+              <span className="cell-games cell-num">{c.games}</span>
+              <span className="cell-score cell-num">
+                {(c.win_rate * 100).toFixed(1)}%
+              </span>
+              <span className="cell-num col-kda">{c.kda.toFixed(2)}</span>
+              <span className="cell-games cell-num col-players">{c.n_players}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

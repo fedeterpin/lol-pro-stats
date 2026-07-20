@@ -28,6 +28,9 @@ export interface LeaderboardRow {
   slug: string | null;
   value: number;
   games: number | null;
+  role: string | null;
+  team: string | null;
+  image_url: string | null;
 }
 
 export function getLeaderboard(stat: string, scope = "all", limit = 100): LeaderboardRow[] {
@@ -35,7 +38,8 @@ export function getLeaderboard(stat: string, scope = "all", limit = 100): Leader
     (db) =>
       db
         .prepare(
-          `SELECT l.rank, l.player_id, l.display_id, pi.slug, l.value, l.games
+          `SELECT l.rank, l.player_id, l.display_id, pi.slug, l.value, l.games,
+                  pi.role, pi.team, pi.image_url
            FROM leaderboards l
            LEFT JOIN player_index pi ON pi.player_id = l.player_id
            WHERE l.stat = ? AND l.scope = ?

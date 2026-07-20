@@ -16,17 +16,13 @@ export default function LeaderboardsPage() {
   }
   return (
     <>
-      <section className="hero">
-        <p className="eyebrow">The main stage, ranked</p>
-        <h1>Leaderboards</h1>
-        <p className="subtitle">
-          Pick a category, filter by role and sort the table. Every record shows its
-          minimum-games threshold to keep it honest.
-        </p>
+      <section className="page-head">
+        <p className="kicker">The main stage, ranked</p>
+        <h1 className="page-title gold-text">Leaderboards</h1>
+        <div className="divider" aria-hidden="true">
+          <span className="diamond" />
+        </div>
       </section>
-      <div className="divider">
-        <span className="hex-node" aria-hidden="true" />
-      </div>
       <LeaderboardExplorer boards={boards} catalog={STAT_CATALOG} />
     </>
   );

@@ -16,18 +16,32 @@ export default function Home() {
 
   return (
     <section className="home-hero">
-      <p className="eyebrow">League of Legends · Esports almanac</p>
-      <h1>Every pro, every record</h1>
-      <p className="subtitle">
+      <div className="home-logo" aria-hidden="true">
+        <i />
+      </div>
+      <p className="kicker">League of Legends · Esports almanac</p>
+      <h1 className="page-title gold-text">Every pro, every record</h1>
+      <div className="divider" aria-hidden="true">
+        <span className="diamond" />
+      </div>
+      <p className="page-sub">
         Search any professional player to open their profile — legacy score, titles,
         KDA and champion pool.
       </p>
       <HomeSearch players={players} />
       <div className="home-links">
-        <Link href="/records">Hall of Records</Link>
-        <Link href="/leaderboards">Leaderboards</Link>
-        <Link href="/players">All players</Link>
-        <Link href="/champions">Champions</Link>
+        <Link href="/records" className="btn">
+          <span>Hall of Records</span>
+        </Link>
+        <Link href="/leaderboards" className="btn">
+          <span>Leaderboards</span>
+        </Link>
+        <Link href="/players" className="btn">
+          <span>All players</span>
+        </Link>
+        <Link href="/champions" className="btn">
+          <span>Champions</span>
+        </Link>
       </div>
     </section>
   );

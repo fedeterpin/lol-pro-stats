@@ -155,7 +155,7 @@ export function getPlayerBySlug(slug: string): PlayerRow | null {
   );
 }
 
-// Rank by legacy score (1 = highest), and the total number of ranked players.
+// Rank by smurf score (1 = highest), and the total number of ranked players.
 // Counts Leaguepedia-sourced players only: the score measures international
 // competition, and regional-only players have no international games, so they all
 // sit at 0. Including them would silently restate every rank as "of 3,792".

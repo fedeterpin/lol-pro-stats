@@ -84,9 +84,10 @@ Cargo (Leaguepedia)  --extract-->  bronze  --load-->  SILVER  --transform-->  GO
   First Stand}`. NOTE: Worlds qualifiers/regional-finals carry `League='World
   Championship'` but a regional Region → they are NOT premier. The headline records are
   driven by tier.
-- **Legacy Score** (`aggregate._legacy_score`): a composite, interpretable score of
-  international greatness (titles > stage > longevity > performance). It is stored with
-  its JSON breakdown in `player_index.score_breakdown` to display it transparently.
+- **Legacy Score** (`aggregate._legacy_score`, displayed in the UI as "Smurf score"): a
+  composite, interpretable score of international greatness (titles > stage > longevity >
+  performance). It is stored with its JSON breakdown in `player_index.score_breakdown` to
+  display it transparently.
 
 ### Web (pure SSG)
 - `next.config.mjs` uses `output: "export"` → a 100% static site, **no server

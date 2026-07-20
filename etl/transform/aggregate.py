@@ -588,7 +588,7 @@ def _worlds_appearances(conn, top_n: int) -> list[tuple]:
 
 # ---------------------------------------------------------------------------
 RECORD_LABELS = {
-    "legacy_score": "Highest legacy score",
+    "legacy_score": "Highest smurf score",
     "intl_titles": "Most international titles",
     "worlds_titles": "Most Worlds titles",
     "msi_titles": "Most MSI titles",

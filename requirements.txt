@@ -1,4 +1,4 @@
-# LoL Pro Stats ETL — extraction from Leaguepedia (Cargo) and Oracle's Elixir.
+# smurfeando ETL — extraction from Leaguepedia (Cargo) and Oracle's Elixir.
 # mwcleric fork recommended by Leaguepedia: retries on Cargo's new rate limits
 # (see Help:Leaguepedia_API). Needs a bot-password login + a confirmed email.
 mwcleric @ git+https://github.com/arbolitoloco1/mwcleric@empty_string_fix

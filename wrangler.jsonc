@@ -1,7 +1,7 @@
 {
   // Deploys the static site (Next.js output:export -> web/out) as an assets Worker.
   // Cloudflare Workers Builds: Build command = `cd web && npm ci && npm run build`.
-  "name": "lol-pro-stats",
+  "name": "smurfeando",
   "compatibility_date": "2024-11-01",
   "assets": {
     "directory": "./web/out",

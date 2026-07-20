@@ -5,7 +5,7 @@ import { STAT_BY_KEY, statCoverageKey, statLabelKey, type StatDef } from "@/lib/
 import { T, StatValue } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "Hall of Records — LoL Pro Stats",
+  title: "Hall of Records — smurfeando",
   description:
     "The all-time record book of professional League of Legends: single-game and career headline records.",
 };

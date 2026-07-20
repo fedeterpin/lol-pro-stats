@@ -45,9 +45,9 @@ const en = {
 
   // --- Home ---
   "home.eyebrow": "League of Legends · Esports almanac",
-  "home.title": "Every pro, every record",
+  "home.title": "Who's smurfing the pro stage?",
   "home.subtitle":
-    "Search any professional player to open their profile — legacy score, titles, KDA and champion pool.",
+    "Search any professional player to open their profile — smurf score, titles, KDA and champion pool.",
   "home.link.records": "Hall of Records",
   "home.link.leaderboards": "Leaderboards",
   "home.link.players": "All players",
@@ -63,7 +63,7 @@ const en = {
   "players.search.placeholder": "Search a player, team or role…",
   "players.search.aria": "Search players",
   "players.card.intlTitles": "International titles",
-  "players.card.legacyScore": "Legacy score",
+  "players.card.legacyScore": "Smurf score",
   "players.showing":
     "Showing {shown} of {total} — refine your search to narrow it down.",
 
@@ -78,7 +78,7 @@ const en = {
   "champions.empty": "No champions above {n} games yet.",
 
   // --- Leaderboards ---
-  "leaderboards.eyebrow": "The main stage, ranked",
+  "leaderboards.eyebrow": "Too good for their own league",
   "leaderboards.title": "Leaderboards",
   "leaderboards.subtitle":
     "Pick a category, filter by role and sort the table. Every record shows its minimum-games threshold to keep it honest.",
@@ -102,7 +102,7 @@ const en = {
 
   // --- Player profile ---
   "player.retired": "Retired",
-  "player.legacyScore": "Legacy score",
+  "player.legacyScore": "Smurf score",
   "player.rank": "#{rank} of {total}",
   "player.recordsHeld": "Records held",
   "player.teamHistory": "Team history",
@@ -119,10 +119,10 @@ const en = {
   "player.breakdown.performance": "Performance",
 
   // --- Stat catalog (label / short column header / help text) ---
-  "stat.legacy_score.label": "Legacy score",
+  "stat.legacy_score.label": "Smurf score",
   "stat.legacy_score.short": "Score",
   "stat.legacy_score.help":
-    "A composite greatness rating: international titles (Worlds > MSI > others), Worlds appearances, longevity and elite KDA on the big stage.",
+    "A composite greatness rating: international titles (Worlds > MSI > others), Worlds appearances, longevity and elite KDA on the big stage. The higher it is, the harder they're smurfing.",
   "stat.career_kda.label": "Best career KDA",
   "stat.career_kda.short": "KDA",
   "stat.career_kda.help":
@@ -189,7 +189,7 @@ const en = {
   // --- Regional-only player profiles ---
   "player.regionalCareer": "Regional career",
   "player.regionalOnly":
-    "Domestic play only — no international appearances, so no Legacy Score.",
+    "Domestic play only — no international appearances, so no Smurf Score.",
   "player.tile.gd15": "GD@15",
   "player.tile.csPerMin": "CS/min",
 } as const;
@@ -198,7 +198,7 @@ export type MsgKey = keyof typeof en;
 
 // Neutral Spanish (no voseo): the site is read across the whole Spanish-speaking
 // scene. Esports jargon that the scene uses in English — Worlds, MSI, KDA,
-// winrate, pool, roster, legacy score — is deliberately left untranslated.
+// winrate, pool, roster, smurf score — is deliberately left untranslated.
 const es: Record<MsgKey, string> = {
   "nav.search": "Buscar",
   "nav.leaderboards": "Rankings",
@@ -225,9 +225,9 @@ const es: Record<MsgKey, string> = {
   "scope.all": "Todos los roles",
 
   "home.eyebrow": "League of Legends · Récords y estadísticas",
-  "home.title": "Todos los pros, todos los récords",
+  "home.title": "¿Quién está smurfeando?",
   "home.subtitle":
-    "Busca cualquier jugador profesional para abrir su perfil: legacy score, títulos, KDA y pool de campeones.",
+    "Busca cualquier jugador profesional para abrir su perfil: smurf score, títulos, KDA y pool de campeones.",
   "home.link.records": "Salón de los Récords",
   "home.link.leaderboards": "Rankings",
   "home.link.players": "Todos los jugadores",
@@ -242,7 +242,7 @@ const es: Record<MsgKey, string> = {
   "players.search.placeholder": "Busca un jugador, equipo o rol…",
   "players.search.aria": "Buscar jugadores",
   "players.card.intlTitles": "Títulos internacionales",
-  "players.card.legacyScore": "Legacy score",
+  "players.card.legacyScore": "Smurf score",
   "players.showing":
     "Mostrando {shown} de {total}: afina la búsqueda para acotar.",
 
@@ -255,7 +255,7 @@ const es: Record<MsgKey, string> = {
   "champions.players": "Jugadores",
   "champions.empty": "Todavía no hay campeones con más de {n} partidas.",
 
-  "leaderboards.eyebrow": "El escenario principal, rankeado",
+  "leaderboards.eyebrow": "Demasiado buenos para su propia liga",
   "leaderboards.title": "Rankings",
   "leaderboards.subtitle":
     "Elige una categoría, filtra por rol y ordena la tabla. Cada récord muestra su mínimo de partidas para que sea honesto.",
@@ -277,7 +277,7 @@ const es: Record<MsgKey, string> = {
     "Todavía no hay datos. El ETL está llenando el salón de los récords: vuelve a cargar en un rato.",
 
   "player.retired": "Retirado",
-  "player.legacyScore": "Legacy score",
+  "player.legacyScore": "Smurf score",
   "player.rank": "#{rank} de {total}",
   "player.recordsHeld": "Récords en su poder",
   "player.teamHistory": "Historial de equipos",
@@ -293,10 +293,10 @@ const es: Record<MsgKey, string> = {
   "player.breakdown.longevity": "Longevidad",
   "player.breakdown.performance": "Rendimiento",
 
-  "stat.legacy_score.label": "Legacy score",
+  "stat.legacy_score.label": "Smurf score",
   "stat.legacy_score.short": "Score",
   "stat.legacy_score.help":
-    "Un rating compuesto de grandeza: títulos internacionales (Worlds > MSI > otros), participaciones en Worlds, longevidad y KDA de élite en el escenario grande.",
+    "Un rating compuesto de grandeza: títulos internacionales (Worlds > MSI > otros), participaciones en Worlds, longevidad y KDA de élite en el escenario grande. Cuanto más alto, más fuerte está smurfeando.",
   "stat.career_kda.label": "Mejor KDA de carrera",
   "stat.career_kda.short": "KDA",
   "stat.career_kda.help":
@@ -366,7 +366,7 @@ const es: Record<MsgKey, string> = {
   // --- Perfiles de jugadores solo regionales ---
   "player.regionalCareer": "Carrera regional",
   "player.regionalOnly":
-    "Solo competencia doméstica — sin apariciones internacionales, así que no tiene Legacy Score.",
+    "Solo competencia doméstica — sin apariciones internacionales, así que no tiene Smurf Score.",
   "player.tile.gd15": "GD@15",
   "player.tile.csPerMin": "CS/min",
 };

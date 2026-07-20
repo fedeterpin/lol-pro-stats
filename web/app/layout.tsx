@@ -34,9 +34,21 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LoL Pro Stats — Hall of Records",
+  metadataBase: new URL("https://smurfeando.gg"),
+  title: "smurfeando — Hall of Records",
   description:
-    "The record book of professional League of Legends: best career KDA, international titles, Worlds appearances and more.",
+    "The record book of professional League of Legends: pros so dominant it looks like smurfing. Career KDA, international titles, Worlds appearances and more.",
+  openGraph: {
+    title: "smurfeando — Hall of Records",
+    description:
+      "The record book of professional League of Legends: pros so dominant it looks like smurfing. Career KDA, international titles, Worlds appearances and more.",
+    siteName: "smurfeando",
+    type: "website",
+    url: "/",
+  },
+  twitter: {
+    card: "summary",
+  },
 };
 
 export const viewport: Viewport = {
@@ -61,7 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <i />
                 </span>
                 <span className="wordmark">
-                  LOL PRO <em>STATS</em>
+                  SMURF<em>EANDO</em>
                 </span>
               </Link>
               <div className="header-tools">

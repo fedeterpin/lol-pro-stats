@@ -1,4 +1,6 @@
-# LoL Pro Stats — Records Almanac
+# smurfeando — LoL Records Almanac
+
+*The name is the joke: the ranking exposes pros so dominant it looks like they're smurfing in their own league.*
 
 A **sports-reference**-style site (Basketball-Reference / Transfermarkt) with
 historical statistics of professional League of Legends players: best all-time KDA,
@@ -65,7 +67,9 @@ npx serve out      # or `npm run dev` for development
   pages, more records (KP%, single-tournament KDA, per role). See
   the plan in `~/.claude/plans/`.
 
-### Legacy Score (player score)
+### Smurf Score (player score)
+
+_Displayed in the UI as "Smurf score"; the internal identifier stays `legacy_score` in code and the DB._
 
 A composite, **interpretable** score of greatness on the big stage (see
 `etl/transform/aggregate.py::_legacy_score`). Since the v1 dataset is international,

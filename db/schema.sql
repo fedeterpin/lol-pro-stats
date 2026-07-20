@@ -1,4 +1,4 @@
--- LoL Pro Stats SQLite schema.
+-- smurfeando SQLite schema.
 -- SILVER layer: columns = Cargo field names (verbatim) so the loader
 --   can insert row-dicts without mapping. INTEGER/REAL types for numeric coercion.
 -- GOLD layer: tables aggregated/precomputed by the ETL (snake_case).

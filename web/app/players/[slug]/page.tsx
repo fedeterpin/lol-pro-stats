@@ -199,7 +199,7 @@ export default async function PlayerPage({
         </div>
       </header>
 
-      {/* Regional-only players have no Legacy Score to show — it measures
+      {/* Regional-only players have no Smurf Score to show — it measures
           international competition and they have none — so the same featured panel
           carries their domestic career instead of standing empty at zero. */}
       <section className="cutp featured score-panel">

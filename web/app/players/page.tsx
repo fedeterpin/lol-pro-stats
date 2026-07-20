@@ -1,9 +1,9 @@
-import { listPlayers } from "@/lib/db";
+import { listPlayerIndex } from "@/lib/db";
 import { T } from "@/lib/i18n";
 import PlayerSearch from "@/components/PlayerSearch";
 
 export default function PlayersPage() {
-  const players = listPlayers(2000);
+  const players = listPlayerIndex();
   return (
     <>
       <section className="page-head">

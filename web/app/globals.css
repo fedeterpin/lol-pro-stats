@@ -558,6 +558,16 @@ a.podium-card.p3:hover { background: var(--bronze); }
   line-height: 1.6;
   color: var(--ink-40);
 }
+/* A caveat about what the data does NOT cover. Set apart from ordinary notes by a
+   hairline rule so it reads as a footnote on the number above it, not as more
+   description of it. */
+.caveat {
+  border-left: 1px solid rgba(200, 170, 110, 0.35);
+  padding-left: 10px;
+  font-style: italic;
+}
+.rail-note.caveat { margin-top: 12px; padding-left: 10px; }
+.rec-meta.caveat { margin-top: 10px; font-size: 11px; color: var(--ink-40); }
 
 /* Role filter chips --------------------------------------------------- */
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -958,6 +968,11 @@ li:last-child > .sr-item { border-bottom: 0; }
   .lb-layout { grid-template-columns: 1fr; gap: 20px; }
   /* Category rail becomes a horizontal scroll chip row above the table */
   .rail-label { padding: 0; margin-bottom: 8px; }
+  /* A grid item defaults to min-width:auto, so the nowrap rail sizes the column to
+     its own content and the overflow-x below never engages — the whole page ends up
+     ~1380px wide on a phone. min-width:0 lets the column shrink so the rail scrolls
+     inside itself instead. */
+  .rail { min-width: 0; }
   .rail-group.categories .rail-items {
     display: flex;
     gap: 4px;

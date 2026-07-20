@@ -1,4 +1,4 @@
-import { getLeaderboard, type LeaderboardRow } from "@/lib/db";
+import { getLeaderboard, getRegions, type LeaderboardRow } from "@/lib/db";
 import { STAT_CATALOG, ROLES } from "@/lib/stats";
 import { T } from "@/lib/i18n";
 import LeaderboardExplorer from "@/components/LeaderboardExplorer";
@@ -6,12 +6,26 @@ import LeaderboardExplorer from "@/components/LeaderboardExplorer";
 export type Boards = Record<string, Record<string, LeaderboardRow[]>>;
 
 export default function LeaderboardsPage() {
+  const regions = getRegions();
   const boards: Boards = {};
   for (const s of STAT_CATALOG) {
-    boards[s.key] = { all: getLeaderboard(s.key, "all", 100) };
-    if (s.roleScoped) {
-      for (const r of ROLES) {
-        boards[s.key][`role:${r}`] = getLeaderboard(s.key, `role:${r}`, 100);
+    boards[s.key] = {};
+    if (s.universes.includes("intl")) {
+      boards[s.key].all = getLeaderboard(s.key, "all", 100);
+      if (s.roleScoped) {
+        for (const r of ROLES) {
+          boards[s.key][`role:${r}`] = getLeaderboard(s.key, `role:${r}`, 100);
+        }
+      }
+    }
+    if (s.universes.includes("regional")) {
+      boards[s.key].regional = getLeaderboard(s.key, "regional", 100);
+      for (const r of regions) {
+        boards[s.key][`region:${r.region}`] = getLeaderboard(
+          s.key,
+          `region:${r.region}`,
+          100,
+        );
       }
     }
   }
@@ -28,7 +42,7 @@ export default function LeaderboardsPage() {
           <span className="diamond" />
         </div>
       </section>
-      <LeaderboardExplorer boards={boards} catalog={STAT_CATALOG} />
+      <LeaderboardExplorer boards={boards} catalog={STAT_CATALOG} regions={regions} />
     </>
   );
 }

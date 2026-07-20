@@ -124,16 +124,31 @@ export function Num({ value }: { value: number }) {
 export function StatValue({
   kind,
   value,
+  signed = false,
 }: {
   kind: StatDef["kind"];
   value: number;
+  signed?: boolean;
 }) {
   const { locale } = useI18n();
-  return <>{formatValue(kind, value, locale)}</>;
+  return <>{formatValue(kind, value, locale, signed)}</>;
 }
 
-/** "All roles" or the role name — roles themselves are not translated. */
-export function ScopeLabel({ scope }: { scope: string }) {
+/**
+ * Names a leaderboard scope. Roles and region names are not translated; `label`
+ * carries the region's display name when the caller resolved one from the data,
+ * so 'region:brazil' never reaches the page as a raw key.
+ */
+export function ScopeLabel({
+  scope,
+  label,
+}: {
+  scope: string;
+  label?: string | null;
+}) {
   const { t } = useI18n();
-  return <>{scope === "all" ? t("scope.all") : scope.replace(/^role:/, "")}</>;
+  if (label) return <>{label}</>;
+  if (scope === "all") return <>{t("scope.all")}</>;
+  if (scope === "regional") return <>{t("leaderboards.universe.regional")}</>;
+  return <>{scope.replace(/^role:/, "")}</>;
 }

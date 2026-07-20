@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { listPlayers } from "@/lib/db";
+import { listPlayerIndex } from "@/lib/db";
 import { T } from "@/lib/i18n";
 import HomeSearch, { type SearchPlayer } from "@/components/HomeSearch";
 
 export default function Home() {
-  const players: SearchPlayer[] = listPlayers(2000).map((p) => ({
+  const players: SearchPlayer[] = listPlayerIndex().map((p) => ({
     player_id: p.player_id,
     display_id: p.display_id,
     name: p.name,

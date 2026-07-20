@@ -7,6 +7,7 @@ import {
   getPlayerTitles,
   getPlayerTeams,
   getPlayerRankings,
+  getPlayerRegions,
   getScoreRank,
   listPlayers,
 } from "@/lib/db";
@@ -56,6 +57,39 @@ export default async function PlayerPage({
   const hasFirst = rankings.some((r) => r.rank === 1);
   const maxPoolGames = Math.max(...champs.map((c) => c.games), 1);
 
+  const isOe = player.source === "oe";
+  // Biggest regional career; drives the featured panel for regional-only players.
+  const mainRegion = isOe ? getPlayerRegions(player.player_id)[0] : undefined;
+
+  const regionalParts: { key: MsgKey; value: React.ReactNode }[] = [
+    {
+      key: "player.tile.careerKda",
+      value: <StatValue kind="ratio" value={player.kda} />,
+    },
+    {
+      key: "player.tile.winRate",
+      value: <StatValue kind="percent" value={player.win_rate} />,
+    },
+    {
+      key: "player.tile.gd15",
+      value:
+        mainRegion?.gd15 == null ? (
+          "—"
+        ) : (
+          <StatValue kind="count" value={mainRegion.gd15} signed />
+        ),
+    },
+    {
+      key: "player.tile.csPerMin",
+      value:
+        mainRegion?.cs_per_min == null ? (
+          "—"
+        ) : (
+          <StatValue kind="ratio" value={mainRegion.cs_per_min} />
+        ),
+    },
+  ];
+
   const tiles: { key: MsgKey; value: React.ReactNode; accent?: boolean }[] = [
     { key: "player.tile.games", value: <Num value={player.games} /> },
     {
@@ -67,11 +101,38 @@ export default async function PlayerPage({
       key: "player.tile.winRate",
       value: <StatValue kind="percent" value={player.win_rate} />,
     },
-    { key: "player.tile.intlTitles", value: <Num value={player.intl_titles} /> },
-    {
-      key: "player.tile.worldsTitles",
-      value: <Num value={player.worlds_titles} />,
-    },
+    // Regional-only players have no international record to show here.
+    ...(isOe
+      ? [
+          {
+            key: "player.tile.csPerMin" as MsgKey,
+            value:
+              mainRegion?.cs_per_min == null ? (
+                "—"
+              ) : (
+                <StatValue kind="ratio" value={mainRegion.cs_per_min} />
+              ),
+          },
+          {
+            key: "player.tile.gd15" as MsgKey,
+            value:
+              mainRegion?.gd15 == null ? (
+                "—"
+              ) : (
+                <StatValue kind="count" value={mainRegion.gd15} signed />
+              ),
+          },
+        ]
+      : [
+          {
+            key: "player.tile.intlTitles" as MsgKey,
+            value: <Num value={player.intl_titles} />,
+          },
+          {
+            key: "player.tile.worldsTitles" as MsgKey,
+            value: <Num value={player.worlds_titles} />,
+          },
+        ]),
   ];
 
   return (
@@ -138,38 +199,59 @@ export default async function PlayerPage({
         </div>
       </header>
 
+      {/* Regional-only players have no Legacy Score to show — it measures
+          international competition and they have none — so the same featured panel
+          carries their domestic career instead of standing empty at zero. */}
       <section className="cutp featured score-panel">
         <div className="cutp-in">
           <div className="score-main">
             <div className="score-num gold-text">
-              <Num value={player.score} />
+              <Num value={isOe ? player.games : player.score} />
             </div>
             <div className="score-cap">
               <div className="score-label">
-                <T k="player.legacyScore" />
+                <T k={isOe ? "player.regionalCareer" : "player.legacyScore"} />
               </div>
-              {scoreRank.rank > 0 && (
-                <div className="score-rank">
-                  <T
-                    k="player.rank"
-                    vars={{ rank: scoreRank.rank, total: scoreRank.total }}
-                  />
-                </div>
-              )}
+              {isOe
+                ? mainRegion?.region_label && (
+                    <div className="score-rank">{mainRegion.region_label}</div>
+                  )
+                : scoreRank.rank > 0 && (
+                    <div className="score-rank">
+                      <T
+                        k="player.rank"
+                        vars={{ rank: scoreRank.rank, total: scoreRank.total }}
+                      />
+                    </div>
+                  )}
             </div>
           </div>
           <div className="score-parts">
-            {BD_PARTS.map((p) => (
-              <div className="spart" key={p.key}>
-                <span className="spart-label">
-                  <T k={p.label} />
-                </span>
-                <span className="spart-val">{breakdown[p.key] || 0}</span>
-              </div>
-            ))}
+            {isOe
+              ? regionalParts.map((p) => (
+                  <div className="spart" key={p.key}>
+                    <span className="spart-label">
+                      <T k={p.key} />
+                    </span>
+                    <span className="spart-val">{p.value}</span>
+                  </div>
+                ))
+              : BD_PARTS.map((p) => (
+                  <div className="spart" key={p.key}>
+                    <span className="spart-label">
+                      <T k={p.label} />
+                    </span>
+                    <span className="spart-val">{breakdown[p.key] || 0}</span>
+                  </div>
+                ))}
           </div>
         </div>
       </section>
+      {isOe && (
+        <p className="rail-note caveat">
+          <T k="player.regionalOnly" />
+        </p>
+      )}
 
       <div className="tile-row">
         {tiles.map((tile) => (
@@ -202,7 +284,7 @@ export default async function PlayerPage({
                   {r.scope !== "all" && (
                     <em>
                       {" "}
-                      · <ScopeLabel scope={r.scope} />
+                      · <ScopeLabel scope={r.scope} label={r.scope_label} />
                     </em>
                   )}
                 </span>

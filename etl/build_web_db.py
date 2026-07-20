@@ -20,6 +20,9 @@ KEEP_TABLES = {
     "oe_leagues",   # 25-row dimension: region labels for the regional scopes
     "etl_meta",
 }
+# Champions kept per player. The player page renders 12; the margin leaves room to
+# show a few more without another ETL change.
+CHAMPION_POOL_KEPT = 16
 
 
 def main() -> None:
@@ -37,6 +40,17 @@ def main() -> None:
     # the ETL checkpoints are not useful in the web
     conn.execute("""DELETE FROM etl_meta WHERE key LIKE 'loaded:%' OR key LIKE 'sweep:%'
                     OR key LIKE 'month:%' OR key LIKE 'meta:%' OR key LIKE 'year:%'""")
+    # Champion pools: the player page shows the top 12, but the ETL stores every
+    # champion a player ever picked — 43k rows across 3.8k players, nearly half of
+    # this file once regional players joined the index. This DB is committed on
+    # every data refresh, so the tail costs a new blob in git history each time.
+    conn.execute(f"""
+        DELETE FROM player_champions WHERE rowid NOT IN (
+            SELECT rowid FROM (
+                SELECT rowid, ROW_NUMBER() OVER (
+                    PARTITION BY player_id ORDER BY games DESC, champion) AS rn
+                FROM player_champions)
+            WHERE rn <= {CHAMPION_POOL_KEPT})""")
     conn.commit()
     conn.execute("PRAGMA journal_mode=DELETE")
     conn.execute("VACUUM")

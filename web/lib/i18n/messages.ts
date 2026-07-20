@@ -56,10 +56,10 @@ const en = {
   "home.search.aria": "Search a pro player",
 
   // --- Players ---
-  "players.eyebrow": "Every name on the stage",
+  "players.eyebrow": "Every name on record",
   "players.title": "Players",
   "players.subtitle":
-    "{count} players who have set foot on an international stage. Search by name, team or role.",
+    "{count} players from the international stage and the domestic leagues. Search by name, team or role.",
   "players.search.placeholder": "Search a player, team or role…",
   "players.search.aria": "Search players",
   "players.card.intlTitles": "International titles",
@@ -126,7 +126,7 @@ const en = {
   "stat.career_kda.label": "Best career KDA",
   "stat.career_kda.short": "KDA",
   "stat.career_kda.help":
-    "(Kills + Assists) / Deaths, from career totals. Minimum 200 games.",
+    "(Kills + Assists) / Deaths, from career totals. Minimum 200 games internationally, 100 in a regional league.",
   "stat.career_kda_intl.label": "Best KDA at internationals",
   "stat.career_kda_intl.short": "KDA · intl",
   "stat.career_kda_intl.help":
@@ -154,7 +154,44 @@ const en = {
   "stat.career_kills.help": "Total kills across an entire career.",
   "stat.win_rate.label": "Best win rate",
   "stat.win_rate.short": "Win %",
-  "stat.win_rate.help": "Wins / games. Minimum 200 games.",
+  "stat.win_rate.help":
+    "Wins / games. Minimum 200 games internationally, 100 in a regional league.",
+  // --- Oracle's Elixir: regional leagues and per-timing economy ---
+  "stat.gd15.label": "Best gold difference at 15",
+  "stat.gd15.short": "GD@15",
+  "stat.gd15.help":
+    "Average gold lead over the opposing laner at 15 minutes. Averaged over games that carry timing data — minimum 50 of them.",
+  "stat.gold15.label": "Most gold at 15",
+  "stat.gold15.short": "Gold@15",
+  "stat.gold15.help":
+    "Average gold held at the 15-minute mark. Same 50-game minimum on games with timing data.",
+  "stat.cs_per_min.label": "Best CS per minute",
+  "stat.cs_per_min.short": "CS/min",
+  "stat.cs_per_min.help":
+    "Total creep score divided by total minutes played — not an average of per-game rates. Minimum 100 games.",
+  "stat.dpm.label": "Most damage per minute",
+  "stat.dpm.short": "DPM",
+  "stat.dpm.help":
+    "Damage to champions divided by total minutes played, from career totals. Minimum 100 games.",
+  "stat.pentakills.label": "Most pentakills",
+  "stat.pentakills.short": "Pentas",
+  "stat.pentakills.help":
+    "Career pentakills, counting domestic leagues and internationals alike.",
+  "stat.pentakills.coverage":
+    "Pentakills come from Oracle's Elixir, which records no multikills for games it marks incomplete — LPL games from 2022 on are therefore not counted.",
+  // --- Leaderboards: universe + region pickers ---
+  "leaderboards.scope": "Scope",
+  "leaderboards.universe.intl": "International",
+  "leaderboards.universe.regional": "Regional",
+  "leaderboards.region": "Region",
+  "leaderboards.allRegions": "All regions",
+  "leaderboards.regionalSource": "Regional data: Oracle's Elixir.",
+  // --- Regional-only player profiles ---
+  "player.regionalCareer": "Regional career",
+  "player.regionalOnly":
+    "Domestic play only — no international appearances, so no Legacy Score.",
+  "player.tile.gd15": "GD@15",
+  "player.tile.csPerMin": "CS/min",
 } as const;
 
 export type MsgKey = keyof typeof en;
@@ -198,10 +235,10 @@ const es: Record<MsgKey, string> = {
   "home.search.placeholder": "Busca un jugador profesional…",
   "home.search.aria": "Buscar un jugador profesional",
 
-  "players.eyebrow": "Todos los nombres del escenario",
+  "players.eyebrow": "Todos los nombres registrados",
   "players.title": "Jugadores",
   "players.subtitle":
-    "{count} jugadores que pisaron un escenario internacional. Busca por nombre, equipo o rol.",
+    "{count} jugadores del escenario internacional y de las ligas domésticas. Busca por nombre, equipo o rol.",
   "players.search.placeholder": "Busca un jugador, equipo o rol…",
   "players.search.aria": "Buscar jugadores",
   "players.card.intlTitles": "Títulos internacionales",
@@ -294,7 +331,44 @@ const es: Record<MsgKey, string> = {
     "Total de asesinatos a lo largo de toda la carrera.",
   "stat.win_rate.label": "Mejor winrate",
   "stat.win_rate.short": "% Vict.",
-  "stat.win_rate.help": "Victorias / partidas. Mínimo 200 partidas.",
+  "stat.win_rate.help":
+    "Victorias / partidas. Mínimo 200 partidas a nivel internacional, 100 en una liga regional.",
+  // --- Oracle's Elixir: ligas regionales y economía por timing ---
+  "stat.gd15.label": "Mejor diferencia de oro a los 15",
+  "stat.gd15.short": "GD@15",
+  "stat.gd15.help":
+    "Ventaja promedio de oro sobre el rival de línea a los 15 minutos. Se promedia sobre las partidas que traen datos de timing — mínimo 50.",
+  "stat.gold15.label": "Más oro a los 15",
+  "stat.gold15.short": "Oro@15",
+  "stat.gold15.help":
+    "Oro promedio acumulado a los 15 minutos. Mismo mínimo de 50 partidas con datos de timing.",
+  "stat.cs_per_min.label": "Mejor CS por minuto",
+  "stat.cs_per_min.short": "CS/min",
+  "stat.cs_per_min.help":
+    "CS total dividido por los minutos totales jugados — no es un promedio de los ratios de cada partida. Mínimo 100 partidas.",
+  "stat.dpm.label": "Más daño por minuto",
+  "stat.dpm.short": "DPM",
+  "stat.dpm.help":
+    "Daño a campeones dividido por los minutos totales jugados, desde totales de carrera. Mínimo 100 partidas.",
+  "stat.pentakills.label": "Más pentakills",
+  "stat.pentakills.short": "Pentas",
+  "stat.pentakills.help":
+    "Pentakills de carrera, contando por igual ligas domésticas e internacionales.",
+  "stat.pentakills.coverage":
+    "Los pentakills vienen de Oracle's Elixir, que no registra multikills en las partidas que marca como incompletas — por eso las partidas de LPL desde 2022 no se cuentan.",
+  // --- Leaderboards: selectores de universo y región ---
+  "leaderboards.scope": "Ámbito",
+  "leaderboards.universe.intl": "Internacional",
+  "leaderboards.universe.regional": "Regional",
+  "leaderboards.region": "Región",
+  "leaderboards.allRegions": "Todas las regiones",
+  "leaderboards.regionalSource": "Datos regionales: Oracle's Elixir.",
+  // --- Perfiles de jugadores solo regionales ---
+  "player.regionalCareer": "Carrera regional",
+  "player.regionalOnly":
+    "Solo competencia doméstica — sin apariciones internacionales, así que no tiene Legacy Score.",
+  "player.tile.gd15": "GD@15",
+  "player.tile.csPerMin": "CS/min",
 };
 
 export const MESSAGES: Record<Locale, Record<MsgKey, string>> = { en, es };

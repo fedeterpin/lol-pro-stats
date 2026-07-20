@@ -77,6 +77,8 @@ export function getRecords(): RecordRow[] {
 // --- Players --------------------------------------------------------------
 export interface PlayerRow {
   player_id: string;
+  // 'leaguepedia' = full profile; 'oe' = regional-only (no bio, photo or score).
+  source: "leaguepedia" | "oe";
   display_id: string;
   slug: string;
   name: string | null;
@@ -101,12 +103,45 @@ export interface PlayerRow {
   team_logo_url: string | null;
 }
 
-export function listPlayers(limit = 2000): PlayerRow[] {
+export function listPlayers(limit = 5000): PlayerRow[] {
   return withDb(
     (db) =>
       db
         .prepare(`SELECT * FROM player_index ORDER BY score DESC, games DESC LIMIT ?`)
         .all(limit) as PlayerRow[],
+    [],
+  );
+}
+
+// Just the columns the index table renders. `SELECT *` ships score_breakdown — a
+// JSON blob per player — and a dozen unused fields to the browser; across 3,792
+// players that is most of the page weight.
+export type PlayerIndexRow = Pick<
+  PlayerRow,
+  | "player_id"
+  | "display_id"
+  | "slug"
+  | "name"
+  | "role"
+  | "team"
+  | "games"
+  | "kda"
+  | "win_rate"
+  | "intl_titles"
+  | "image_url"
+  | "score"
+>;
+
+export function listPlayerIndex(): PlayerIndexRow[] {
+  return withDb(
+    (db) =>
+      db
+        .prepare(
+          `SELECT player_id, display_id, slug, name, role, team, games, kda,
+                  win_rate, intl_titles, image_url, score
+           FROM player_index ORDER BY score DESC, games DESC`,
+        )
+        .all() as PlayerIndexRow[],
     [],
   );
 }
@@ -121,18 +156,83 @@ export function getPlayerBySlug(slug: string): PlayerRow | null {
 }
 
 // Rank by legacy score (1 = highest), and the total number of ranked players.
+// Counts Leaguepedia-sourced players only: the score measures international
+// competition, and regional-only players have no international games, so they all
+// sit at 0. Including them would silently restate every rank as "of 3,792".
 export function getScoreRank(score: number): { rank: number; total: number } {
   return withDb(
     (db) => {
       const higher = db
-        .prepare(`SELECT COUNT(*) AS c FROM player_index WHERE score > ?`)
+        .prepare(
+          `SELECT COUNT(*) AS c FROM player_index
+           WHERE score > ? AND source = 'leaguepedia'`,
+        )
         .get(score) as { c: number };
-      const total = db.prepare(`SELECT COUNT(*) AS c FROM player_index`).get() as {
-        c: number;
-      };
+      const total = db
+        .prepare(`SELECT COUNT(*) AS c FROM player_index WHERE source = 'leaguepedia'`)
+        .get() as { c: number };
       return { rank: higher.c + 1, total: total.c };
     },
     { rank: 0, total: 0 },
+  );
+}
+
+// --- Regional career (Oracle's Elixir scopes) -----------------------------
+export interface RegionRow {
+  region: string; // scope suffix, e.g. 'korea'
+  region_label: string;
+}
+
+// Regions that actually have a leaderboard, biggest first. Driven by the data so a
+// change to the ETL allowlist shows up without touching the web.
+export function getRegions(): RegionRow[] {
+  return withDb(
+    (db) =>
+      db
+        .prepare(
+          `SELECT l.region, l.region_label, SUM(p.games) AS games
+           FROM oe_leagues l
+           JOIN player_career_stats p ON p.scope = 'region:' || l.region
+           WHERE l.scope = 'regional'
+           GROUP BY l.region ORDER BY games DESC`,
+        )
+        .all() as RegionRow[],
+    [],
+  );
+}
+
+export interface CareerScopeRow {
+  scope: string;
+  games: number;
+  wins: number;
+  kda: number;
+  win_rate: number;
+  economy_games: number | null;
+  gd15: number | null;
+  gold15: number | null;
+  cs_per_min: number | null;
+  dpm: number | null;
+  pentakills: number | null;
+  region_label: string | null;
+}
+
+// A player's regional careers, biggest first. `region_label` is null for the
+// combined 'regional' row.
+export function getPlayerRegions(playerId: string): CareerScopeRow[] {
+  return withDb(
+    (db) =>
+      db
+        .prepare(
+          `SELECT p.scope, p.games, p.wins, p.kda, p.win_rate, p.economy_games,
+                  p.gd15, p.gold15, p.cs_per_min, p.dpm, p.pentakills,
+                  (SELECT l.region_label FROM oe_leagues l
+                    WHERE 'region:' || l.region = p.scope LIMIT 1) AS region_label
+           FROM player_career_stats p
+           WHERE p.player_id = ? AND p.scope LIKE 'region:%'
+           ORDER BY p.games DESC`,
+        )
+        .all(playerId) as CareerScopeRow[],
+    [],
   );
 }
 
@@ -207,6 +307,10 @@ export function getPlayerTeams(playerId: string): TeamHistoryRow[] {
 export interface RankingRow {
   stat: string;
   scope: string;
+  // Display name for a region scope ('region:brazil' -> 'Brazil'); null for the
+  // scopes the UI can already name (all, role:*, regional). Resolved here because
+  // the label belongs to the data, not to a string transform in the UI.
+  scope_label: string | null;
   rank: number;
   value: number;
   games: number | null;
@@ -218,8 +322,11 @@ export function getPlayerRankings(playerId: string, maxRank = 20): RankingRow[] 
     (db) =>
       db
         .prepare(
-          `SELECT stat, scope, rank, value, games FROM leaderboards
-           WHERE player_id = ? AND rank <= ? ORDER BY rank, stat`,
+          `SELECT l.stat, l.scope, l.rank, l.value, l.games,
+                  (SELECT o.region_label FROM oe_leagues o
+                    WHERE 'region:' || o.region = l.scope LIMIT 1) AS scope_label
+           FROM leaderboards l
+           WHERE l.player_id = ? AND l.rank <= ? ORDER BY l.rank, l.stat`,
         )
         .all(playerId, maxRank) as RankingRow[],
     [],

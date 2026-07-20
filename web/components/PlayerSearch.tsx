@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import type { PlayerRow } from "@/lib/db";
+import type { PlayerIndexRow } from "@/lib/db";
 import { formatValue, ROLES } from "@/lib/stats";
 import { useI18n } from "@/lib/i18n";
 
@@ -17,7 +17,7 @@ const ROLE_SHORT: Record<string, string> = {
 
 const MAX_ROWS = 100;
 
-export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
+export default function PlayerSearch({ players }: { players: PlayerIndexRow[] }) {
   const { t, locale } = useI18n();
   const [q, setQ] = useState("");
   const [role, setRole] = useState("all");

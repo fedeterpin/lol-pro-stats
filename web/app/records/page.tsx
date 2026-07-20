@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getRecords } from "@/lib/db";
-import { STAT_BY_KEY, statLabelKey, type StatDef } from "@/lib/stats";
+import { STAT_BY_KEY, statCoverageKey, statLabelKey, type StatDef } from "@/lib/stats";
 import { T, StatValue } from "@/lib/i18n";
 
 export const metadata: Metadata = {
@@ -64,11 +64,18 @@ export default function RecordsPage() {
                     )}
                   </div>
                   <div className="rec-value gold-text">
-                    <StatValue kind={kind} value={rec.value} />
+                    <StatValue kind={kind} value={rec.value} signed={def?.signed} />
                   </div>
                   {games != null && (
                     <div className="rec-meta">
                       <T k="common.gamesCount" vars={{ n: games }} />
+                    </div>
+                  )}
+                  {/* Say so when the source does not cover every game, rather than
+                      letting the record read as complete. */}
+                  {def?.coverage && (
+                    <div className="rec-meta caveat">
+                      <T k={statCoverageKey(statKey)} />
                     </div>
                   )}
                 </div>

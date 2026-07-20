@@ -9,4 +9,3 @@ pydantic>=2.6
 httpx>=0.27
 # Handling Oracle's Elixir's large CSVs (Phase 2).
 polars>=0.20
-</content>

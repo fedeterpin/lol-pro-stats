@@ -224,7 +224,7 @@ const es: Record<MsgKey, string> = {
   "common.noMatch": "Ningún jugador coincide con «{q}».",
   "scope.all": "Todos los roles",
 
-  "home.eyebrow": "League of Legends · Almanaque de esports",
+  "home.eyebrow": "League of Legends · Récords y estadísticas",
   "home.title": "Todos los pros, todos los récords",
   "home.subtitle":
     "Busca cualquier jugador profesional para abrir su perfil: legacy score, títulos, KDA y pool de campeones.",

@@ -148,7 +148,7 @@ a.cutp.featured:hover { background: var(--gold-hi); filter: drop-shadow(0 0 26px
   transition: background 150ms ease, color 150ms ease;
 }
 .btn:hover { background: var(--gold-hi); }
-.btn:hover > span { background: rgba(200, 170, 110, 0.16); color: var(--gold-hi); }
+.btn:hover > span { background: rgba(200, 170, 110, 0.16); color: var(--panel-base); }
 
 /* Header / navigation ------------------------------------------------ */
 .site-header {

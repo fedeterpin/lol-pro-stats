@@ -31,6 +31,8 @@ const en = {
   "common.back": "Back",
   "common.player": "Player",
   "common.value": "Value",
+  "common.role": "Role",
+  "common.team": "Team",
   "common.games": "Games",
   "common.gamesLower": "games",
   "common.gamesCount": "{n} games",
@@ -62,6 +64,8 @@ const en = {
   "players.search.aria": "Search players",
   "players.card.intlTitles": "International titles",
   "players.card.legacyScore": "Legacy score",
+  "players.showing":
+    "Showing {shown} of {total} — refine your search to narrow it down.",
 
   // --- Champions ---
   "champions.eyebrow": "The pick & ban stage",
@@ -80,6 +84,13 @@ const en = {
     "Pick a category, filter by role and sort the table. Every record shows its minimum-games threshold to keep it honest.",
   "leaderboards.empty":
     "Not enough data for this leaderboard yet. The ETL is still loading — try reloading in a little while.",
+  "leaderboards.category": "Category",
+  "leaderboards.role": "Role",
+  "leaderboards.showAll": "Show all {n} ▾",
+  "leaderboards.showTop": "Show top 20 ▴",
+  "podium.first": "First",
+  "podium.second": "Second",
+  "podium.third": "Third",
 
   // --- Records ---
   "records.eyebrow": "The all-time record book",
@@ -164,6 +175,8 @@ const es: Record<MsgKey, string> = {
   "common.back": "Volver",
   "common.player": "Jugador",
   "common.value": "Valor",
+  "common.role": "Rol",
+  "common.team": "Equipo",
   "common.games": "Partidas",
   "common.gamesLower": "partidas",
   "common.gamesCount": "{n} partidas",
@@ -193,6 +206,8 @@ const es: Record<MsgKey, string> = {
   "players.search.aria": "Buscar jugadores",
   "players.card.intlTitles": "Títulos internacionales",
   "players.card.legacyScore": "Legacy score",
+  "players.showing":
+    "Mostrando {shown} de {total}: afina la búsqueda para acotar.",
 
   "champions.eyebrow": "La fase de picks y bans",
   "champions.title": "Campeones",
@@ -209,6 +224,13 @@ const es: Record<MsgKey, string> = {
     "Elige una categoría, filtra por rol y ordena la tabla. Cada récord muestra su mínimo de partidas para que sea honesto.",
   "leaderboards.empty":
     "Todavía no hay datos suficientes para este ranking. El ETL sigue cargando: vuelve a intentarlo en un rato.",
+  "leaderboards.category": "Categoría",
+  "leaderboards.role": "Rol",
+  "leaderboards.showAll": "Mostrar los {n} ▾",
+  "leaderboards.showTop": "Mostrar el top 20 ▴",
+  "podium.first": "Primero",
+  "podium.second": "Segundo",
+  "podium.third": "Tercero",
 
   "records.eyebrow": "El libro de récords histórico",
   "records.title": "Salón de los Récords",

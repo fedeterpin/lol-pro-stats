@@ -17,28 +17,42 @@ export default function Home() {
 
   return (
     <section className="home-hero">
-      <p className="eyebrow">
+      <div className="home-logo" aria-hidden="true">
+        <i />
+      </div>
+      <p className="kicker">
         <T k="home.eyebrow" />
       </p>
-      <h1>
+      <h1 className="page-title gold-text">
         <T k="home.title" />
       </h1>
-      <p className="subtitle">
+      <div className="divider" aria-hidden="true">
+        <span className="diamond" />
+      </div>
+      <p className="page-sub">
         <T k="home.subtitle" />
       </p>
       <HomeSearch players={players} />
       <div className="home-links">
-        <Link href="/records">
-          <T k="home.link.records" />
+        <Link href="/records" className="btn">
+          <span>
+            <T k="home.link.records" />
+          </span>
         </Link>
-        <Link href="/leaderboards">
-          <T k="home.link.leaderboards" />
+        <Link href="/leaderboards" className="btn">
+          <span>
+            <T k="home.link.leaderboards" />
+          </span>
         </Link>
-        <Link href="/players">
-          <T k="home.link.players" />
+        <Link href="/players" className="btn">
+          <span>
+            <T k="home.link.players" />
+          </span>
         </Link>
-        <Link href="/champions">
-          <T k="home.link.champions" />
+        <Link href="/champions" className="btn">
+          <span>
+            <T k="home.link.champions" />
+          </span>
         </Link>
       </div>
     </section>

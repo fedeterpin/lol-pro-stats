@@ -15,20 +15,20 @@ export default function RecordsPage() {
 
   return (
     <>
-      <section className="hero">
-        <p className="eyebrow">
+      <section className="page-head">
+        <p className="kicker">
           <T k="records.eyebrow" />
         </p>
-        <h1>
+        <h1 className="page-title gold-text">
           <T k="records.title" />
         </h1>
-        <p className="subtitle">
+        <div className="divider" aria-hidden="true">
+          <span className="diamond" />
+        </div>
+        <p className="page-sub">
           <T k="records.subtitle" />
         </p>
       </section>
-      <div className="divider">
-        <span className="hex-node" aria-hidden="true" />
-      </div>
 
       {records.length === 0 ? (
         <p className="empty">
@@ -40,6 +40,7 @@ export default function RecordsPage() {
             const statKey = rec.record_key.replace(/^most_/, "");
             const def: StatDef | undefined = STAT_BY_KEY[statKey];
             const kind = def?.kind ?? "count";
+            const featured = statKey === "legacy_score";
             let games: number | null = null;
             try {
               games = JSON.parse(rec.context ?? "{}")?.games ?? null;
@@ -47,27 +48,30 @@ export default function RecordsPage() {
               /* noop */
             }
             return (
-              <article className="record-card" key={rec.record_key}>
-                <span className="label">
-                  {def ? <T k={statLabelKey(statKey)} /> : rec.label}
-                </span>
-                <div className="holder">
-                  {rec.slug ? (
-                    <Link href={`/players/${rec.slug}`} className="plink">
-                      {rec.display_id}
-                    </Link>
-                  ) : (
-                    rec.display_id
+              <article
+                className={`cutp record-card${featured ? " featured" : " cut14"}`}
+                key={rec.record_key}
+              >
+                <div className="cutp-in">
+                  <span className="rec-label">
+                    {def ? <T k={statLabelKey(statKey)} /> : rec.label}
+                  </span>
+                  <div className="rec-holder">
+                    {rec.slug ? (
+                      <Link href={`/players/${rec.slug}`}>{rec.display_id}</Link>
+                    ) : (
+                      rec.display_id
+                    )}
+                  </div>
+                  <div className="rec-value gold-text">
+                    <StatValue kind={kind} value={rec.value} />
+                  </div>
+                  {games != null && (
+                    <div className="rec-meta">
+                      <T k="common.gamesCount" vars={{ n: games }} />
+                    </div>
                   )}
                 </div>
-                <div className="value">
-                  <StatValue kind={kind} value={rec.value} />
-                </div>
-                {games != null && (
-                  <div className="meta">
-                    <T k="common.gamesCount" vars={{ n: games }} />
-                  </div>
-                )}
               </article>
             );
           })}

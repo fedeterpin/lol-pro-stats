@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import type { ChampionStatRow } from "@/lib/db";
 import { championSquare } from "@/lib/champion";
-import { useI18n } from "@/lib/i18n";
 import { formatValue } from "@/lib/stats";
+import { useI18n } from "@/lib/i18n";
 
 type SortKey = "games" | "win_rate" | "kda";
 const MIN_OPTIONS = [1, 20, 50, 100];
@@ -23,68 +23,67 @@ export default function ChampionTable({ champions }: { champions: ChampionStatRo
     [champions, sort, minGames],
   );
 
-  const header = (key: SortKey, label: string) => (
-    <th
-      className="num"
-      data-active={sort === key}
+  const header = (key: SortKey, label: string, extra = "") => (
+    <button
+      type="button"
+      className={`th-btn th-num${extra}${sort === key ? " active" : ""}`}
       onClick={() => setSort(key)}
-      role="button"
     >
       {label}
       {sort === key ? " ▼" : ""}
-    </th>
+    </button>
   );
 
   return (
     <>
       <div className="controls">
         <span className="ctrl-label">{t("champions.minGames")}</span>
-        {MIN_OPTIONS.map((m) => (
-          <button
-            key={m}
-            className="chip role-chip"
-            data-active={m === minGames}
-            onClick={() => setMinGames(m)}
-          >
-            {m}
-          </button>
-        ))}
+        <div className="chips">
+          {MIN_OPTIONS.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`chip${m === minGames ? " active" : ""}`}
+              onClick={() => setMinGames(m)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="board-wrap">
-        <table className="board">
-          <thead>
-            <tr>
-              <th>{t("champions.champion")}</th>
-              {header("games", t("common.games"))}
-              {header("win_rate", t("common.winRate"))}
-              {header("kda", t("common.kda"))}
-              <th className="num">{t("champions.players")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr key={c.champion}>
-                <td className="champ-cell">
-                  <span
-                    className="champ-icon sm"
-                    style={{ backgroundImage: `url(${championSquare(c.champion)})` }}
-                    aria-hidden="true"
-                  />
-                  <span className="player">{c.champion}</span>
-                </td>
-                <td className="num">{c.games.toLocaleString(locale)}</td>
-                <td className="num val">
-                  {formatValue("percent", c.win_rate, locale)}
-                </td>
-                <td className="num">{formatValue("ratio", c.kda, locale)}</td>
-                <td className="num games">{c.n_players}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {rows.length === 0 && (
+
+      {rows.length === 0 ? (
         <p className="empty">{t("champions.empty", { n: minGames })}</p>
+      ) : (
+        <div className="tbl tbl-champs">
+          <div className="tbl-head">
+            <span className="th-lab">{t("champions.champion")}</span>
+            {header("games", t("common.games"))}
+            {header("win_rate", t("common.winRate"))}
+            {header("kda", t("common.kda"), " col-kda")}
+            <span className="th-lab th-num col-players">{t("champions.players")}</span>
+          </div>
+          {rows.map((c, i) => (
+            <div className={`tbl-row${i === 0 ? " first" : ""}`} key={c.champion}>
+              <span className="pcell">
+                <span
+                  className="champ-icon"
+                  style={{ backgroundImage: `url(${championSquare(c.champion)})` }}
+                  aria-hidden="true"
+                />
+                <span className="pname">{c.champion}</span>
+              </span>
+              <span className="cell-games cell-num">{c.games}</span>
+              <span className="cell-score cell-num">
+                {formatValue("percent", c.win_rate, locale)}
+              </span>
+              <span className="cell-num col-kda">
+                {formatValue("ratio", c.kda, locale)}
+              </span>
+              <span className="cell-games cell-num col-players">{c.n_players}</span>
+            </div>
+          ))}
+        </div>
       )}
     </>
   );

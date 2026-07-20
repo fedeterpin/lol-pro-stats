@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { roleIcon } from "@/lib/icons";
 import { useI18n } from "@/lib/i18n";
 
 // Minimal player shape for the search index (keeps the homepage payload small).
@@ -38,60 +37,59 @@ export default function HomeSearch({ players }: { players: SearchPlayer[] }) {
 
   return (
     <div className="home-search">
-      <div className="hs-box">
-        <span className="hs-icon" aria-hidden="true">
-          ⌕
-        </span>
-        <input
-          className="hs-input"
-          type="search"
-          placeholder={t("home.search.placeholder")}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && results[0]) router.push(`/players/${results[0].slug}`);
-            if (e.key === "Escape") setOpen(false);
-          }}
-          aria-label={t("home.search.aria")}
-          autoComplete="off"
-        />
+      <div className="cutp search-frame">
+        <div className="cutp-in">
+          <span className="search-icon" aria-hidden="true">
+            ⌕
+          </span>
+          <input
+            className="search-input"
+            type="search"
+            placeholder={t("home.search.placeholder")}
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && results[0])
+                router.push(`/players/${results[0].slug}`);
+              if (e.key === "Escape") setOpen(false);
+            }}
+            aria-label={t("home.search.aria")}
+            autoComplete="off"
+          />
+        </div>
       </div>
 
       {open && q.trim() && (
-        <ul className="hs-results">
+        <ul className="search-results">
           {results.length === 0 ? (
-            <li className="hs-empty">{t("common.noMatch", { q })}</li>
+            <li className="sr-empty">{t("common.noMatch", { q })}</li>
           ) : (
             results.map((p) => (
               <li key={p.player_id}>
-                <Link href={`/players/${p.slug}`} className="hs-item">
+                <Link href={`/players/${p.slug}`} className="sr-item">
                   <span
-                    className="avatar sm"
+                    className="avatar av-30"
                     style={
-                      p.image_url ? { backgroundImage: `url(${p.image_url})` } : undefined
+                      p.image_url
+                        ? { backgroundImage: `url(${p.image_url})` }
+                        : undefined
                     }
                     aria-hidden="true"
                   >
                     {!p.image_url && (p.display_id?.[0] ?? "?")}
                   </span>
-                  <span className="hs-id">
-                    <span className="hs-name">{p.display_id}</span>
-                    <span className="hs-meta">
-                      {p.role && roleIcon(p.role) && (
-                        <span
-                          className="ic role sm"
-                          style={{ backgroundImage: `url(${roleIcon(p.role)})` }}
-                        />
-                      )}
+                  <span className="sr-id">
+                    <span className="pname">{p.display_id}</span>
+                    <span className="sr-meta">
                       {[p.role, p.team].filter(Boolean).join(" · ")}
                     </span>
                   </span>
-                  {p.score > 0 && <span className="hs-score">{p.score}</span>}
+                  {p.score > 0 && <span className="sr-score">{p.score}</span>}
                 </Link>
               </li>
             ))

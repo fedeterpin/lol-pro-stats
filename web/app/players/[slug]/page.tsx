@@ -10,7 +10,6 @@ import {
   getScoreRank,
   listPlayers,
 } from "@/lib/db";
-import ScoreBreakdown from "@/components/ScoreBreakdown";
 import { championSquare } from "@/lib/champion";
 import { roleIcon, countryFlag } from "@/lib/icons";
 import { STAT_BY_KEY, statLabelKey } from "@/lib/stats";
@@ -20,6 +19,14 @@ import type { MsgKey } from "@/lib/i18n/messages";
 export function generateStaticParams() {
   return listPlayers(5000).map((p) => ({ slug: p.slug }));
 }
+
+// The legacy-score split, shown as micro-label + mono pairs (design spec).
+const BD_PARTS: { key: string; label: MsgKey }[] = [
+  { key: "titles", label: "player.breakdown.titles" },
+  { key: "stage", label: "player.breakdown.stage" },
+  { key: "longevity", label: "player.breakdown.longevity" },
+  { key: "performance", label: "player.breakdown.performance" },
+];
 
 export default async function PlayerPage({
   params,
@@ -41,10 +48,13 @@ export default async function PlayerPage({
       return {};
     }
   })();
-  const held = getPlayerRankings(player.player_id, 10)
-    .filter((r) => STAT_BY_KEY[r.stat])
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, 8);
+  const rankings = getPlayerRankings(player.player_id, 10).filter(
+    (r) => STAT_BY_KEY[r.stat],
+  );
+  const held = rankings.sort((a, b) => a.rank - b.rank).slice(0, 8);
+  // Gold-gradient name is earned: only for players holding a #1 record.
+  const hasFirst = rankings.some((r) => r.rank === 1);
+  const maxPoolGames = Math.max(...champs.map((c) => c.games), 1);
 
   const tiles: { key: MsgKey; value: React.ReactNode; accent?: boolean }[] = [
     { key: "player.tile.games", value: <Num value={player.games} /> },
@@ -68,31 +78,37 @@ export default async function PlayerPage({
     <>
       <BackLink />
 
-      <header className="player-head">
-        {player.image_url && (
-          <span
-            className="portrait"
-            style={{ backgroundImage: `url(${player.image_url})` }}
-            aria-hidden="true"
-          />
-        )}
-        <div className="player-headinfo">
-          <h1 className="player-name">{player.display_id}</h1>
+      <header className="player-hero">
+        <span
+          className="avatar av-96"
+          style={
+            player.image_url ? { backgroundImage: `url(${player.image_url})` } : undefined
+          }
+          aria-hidden="true"
+        >
+          {!player.image_url && (player.display_id?.[0] ?? "?")}
+        </span>
+        <div>
+          <h1 className={`player-name${hasFirst ? " gold-text" : ""}`}>
+            {player.display_id}
+          </h1>
           {player.name && player.name !== player.display_id && (
             <p className="player-real">{player.name}</p>
           )}
-          <p className="player-meta">
-            {player.role && roleIcon(player.role) && (
-              <span className="pm-item" title={player.role}>
-                <span
-                  className="ic role"
-                  style={{ backgroundImage: `url(${roleIcon(player.role)})` }}
-                />
+          <p className="player-chips">
+            {player.role && (
+              <span className="pchip" title={player.role}>
+                {roleIcon(player.role) && (
+                  <span
+                    className="ic role"
+                    style={{ backgroundImage: `url(${roleIcon(player.role)})` }}
+                  />
+                )}
                 {player.role}
               </span>
             )}
             {player.team && (
-              <span className="pm-item">
+              <span className="pchip">
                 {player.team_logo_url && (
                   <span
                     className="ic team"
@@ -103,7 +119,7 @@ export default async function PlayerPage({
               </span>
             )}
             {player.country && (
-              <span className="pm-item">
+              <span className="pchip">
                 {countryFlag(player.country) && (
                   <span
                     className="ic flag"
@@ -114,7 +130,7 @@ export default async function PlayerPage({
               </span>
             )}
             {player.is_retired ? (
-              <span className="pm-item retired">
+              <span className="pchip retired">
                 <T k="player.retired" />
               </span>
             ) : null}
@@ -122,36 +138,49 @@ export default async function PlayerPage({
         </div>
       </header>
 
-      <section className="score-panel">
-        <div className="score-main">
-          <div className="score-num">
-            <Num value={player.score} />
-          </div>
-          <div className="score-cap">
-            <div className="score-label">
-              <T k="player.legacyScore" />
+      <section className="cutp featured score-panel">
+        <div className="cutp-in">
+          <div className="score-main">
+            <div className="score-num gold-text">
+              <Num value={player.score} />
             </div>
-            {scoreRank.rank > 0 && (
-              <div className="score-rank">
-                <T
-                  k="player.rank"
-                  vars={{ rank: scoreRank.rank, total: scoreRank.total }}
-                />
+            <div className="score-cap">
+              <div className="score-label">
+                <T k="player.legacyScore" />
               </div>
-            )}
+              {scoreRank.rank > 0 && (
+                <div className="score-rank">
+                  <T
+                    k="player.rank"
+                    vars={{ rank: scoreRank.rank, total: scoreRank.total }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="score-parts">
+            {BD_PARTS.map((p) => (
+              <div className="spart" key={p.key}>
+                <span className="spart-label">
+                  <T k={p.label} />
+                </span>
+                <span className="spart-val">{breakdown[p.key] || 0}</span>
+              </div>
+            ))}
           </div>
         </div>
-        <ScoreBreakdown breakdown={breakdown} />
       </section>
 
       <div className="tile-row">
         {tiles.map((tile) => (
-          <div className="tile" key={tile.key}>
-            <div className={`tile-val${tile.accent ? " accent" : ""}`}>
-              {tile.value}
-            </div>
-            <div className="tile-label">
-              <T k={tile.key} />
+          <div className="cutp cut14 tile" key={tile.key}>
+            <div className="cutp-in">
+              <div className={`tile-val${tile.accent ? " accent" : ""}`}>
+                {tile.value}
+              </div>
+              <div className="tile-label">
+                <T k={tile.key} />
+              </div>
             </div>
           </div>
         ))}
@@ -162,29 +191,26 @@ export default async function PlayerPage({
           <h2 className="block-title">
             <T k="player.recordsHeld" />
           </h2>
-          <div className="held-grid">
-            {held.map((r) => {
-              const def = STAT_BY_KEY[r.stat];
-              return (
-                <div className="held" key={`${r.stat}-${r.scope}`}>
-                  <span className={`held-rank r${r.rank <= 3 ? r.rank : "n"}`}>
-                    #{r.rank}
-                  </span>
-                  <span className="held-label">
-                    <T k={statLabelKey(r.stat)} />
-                    {r.scope !== "all" && (
-                      <em>
-                        {" · "}
-                        <ScopeLabel scope={r.scope} />
-                      </em>
-                    )}
-                    <b>
-                      <StatValue kind={def.kind} value={r.value} />
-                    </b>
-                  </span>
-                </div>
-              );
-            })}
+          <div className="held-list">
+            {held.map((r) => (
+              <div className="held-row" key={`${r.stat}-${r.scope}`}>
+                <span className={`rank-chip${r.rank <= 3 ? ` r${r.rank}` : ""}`}>
+                  #{r.rank}
+                </span>
+                <span className="held-name">
+                  <T k={statLabelKey(r.stat)} />
+                  {r.scope !== "all" && (
+                    <em>
+                      {" "}
+                      · <ScopeLabel scope={r.scope} />
+                    </em>
+                  )}
+                </span>
+                <span className="held-val">
+                  <StatValue kind={STAT_BY_KEY[r.stat].kind} value={r.value} />
+                </span>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -194,25 +220,23 @@ export default async function PlayerPage({
           <h2 className="block-title">
             <T k="player.teamHistory" />
           </h2>
-          <div className="teamhist">
-            {teams.map((t) => (
-              <div className="th-item" key={t.team}>
-                {t.team_logo_url && (
+          <div className="th-list">
+            {teams.map((team) => (
+              <div className="th-row" key={team.team}>
+                {team.team_logo_url && (
                   <span
                     className="th-logo"
-                    style={{ backgroundImage: `url(${t.team_logo_url})` }}
+                    style={{ backgroundImage: `url(${team.team_logo_url})` }}
                     aria-hidden="true"
                   />
                 )}
-                <div className="th-info">
-                  <span className="th-name">{t.team}</span>
-                  <span className="th-years">
-                    {t.first_year === t.last_year
-                      ? t.first_year
-                      : `${t.first_year}–${t.last_year}`}{" "}
-                    · <T k="common.gamesCount" vars={{ n: t.games }} />
-                  </span>
-                </div>
+                <span className="th-name">{team.team}</span>
+                <span className="th-years">
+                  {team.first_year === team.last_year
+                    ? team.first_year
+                    : `${team.first_year}–${team.last_year}`}{" "}
+                  · <T k="common.gamesCount" vars={{ n: team.games }} />
+                </span>
               </div>
             ))}
           </div>
@@ -222,25 +246,17 @@ export default async function PlayerPage({
       {titles.length > 0 && (
         <section className="block">
           <h2 className="block-title">
-            <T k="player.trophyCase" /> · {titles.length}
+            <T k="player.trophyCase" /> <em>· {titles.length}</em>
           </h2>
-          <div className="trophy-grid">
-            {titles.map((t) => (
-              <div className="trophy" key={t.overview_page}>
-                {t.team_logo_url && (
-                  <span
-                    className="trophy-logo"
-                    style={{ backgroundImage: `url(${t.team_logo_url})` }}
-                    aria-hidden="true"
-                  />
-                )}
-                <div className="trophy-info">
-                  <span className="trophy-year">
-                    {t.year} · {t.league}
-                  </span>
-                  <span className="trophy-event">{t.event}</span>
-                  {t.team && <span className="trophy-team">{t.team}</span>}
-                </div>
+          <div className="trophy-list">
+            {titles.map((title) => (
+              <div className="trophy-row" key={title.overview_page}>
+                <span className="diamond" aria-hidden="true" />
+                <span className="trophy-event">
+                  {title.event}
+                  {title.team && <em>{title.team}</em>}
+                </span>
+                <span className="trophy-year">{title.year}</span>
               </div>
             ))}
           </div>
@@ -252,26 +268,32 @@ export default async function PlayerPage({
           <h2 className="block-title">
             <T k="player.championPool" />
           </h2>
-          <div className="champ-grid">
+          <div className="pool-list">
             {champs.map((c) => (
-              <div className="champ" key={c.champion}>
+              <div className="pool-row" key={c.champion}>
                 <span
                   className="champ-icon"
                   style={{ backgroundImage: `url(${championSquare(c.champion)})` }}
                   aria-hidden="true"
                 />
-                <div className="champ-body">
-                  <div className="champ-name">{c.champion}</div>
-                  <div className="champ-stat">
-                    <T k="common.gamesCount" vars={{ n: c.games }} /> · {c.wins}
-                    <T k="common.winShort" /> {c.games - c.wins}
-                    <T k="common.lossShort" /> ·{" "}
-                    <b>
-                      <StatValue kind="ratio" value={c.kda} />
-                    </b>{" "}
-                    KDA
-                  </div>
-                </div>
+                <span className="pool-name">{c.champion}</span>
+                <span className="pool-num">
+                  <T k="common.gamesCount" vars={{ n: c.games }} />
+                </span>
+                <span className="pool-num pool-wl">
+                  {c.wins}
+                  <T k="common.winShort" /> {c.games - c.wins}
+                  <T k="common.lossShort" />
+                </span>
+                <span className="pool-num pool-kda">
+                  <b>
+                    <StatValue kind="ratio" value={c.kda} />
+                  </b>{" "}
+                  <T k="common.kda" />
+                </span>
+                <span className="pool-bar" aria-hidden="true">
+                  <i style={{ width: `${(c.games / maxPoolGames) * 100}%` }} />
+                </span>
               </div>
             ))}
           </div>

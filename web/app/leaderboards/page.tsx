@@ -17,20 +17,17 @@ export default function LeaderboardsPage() {
   }
   return (
     <>
-      <section className="hero">
-        <p className="eyebrow">
+      <section className="page-head">
+        <p className="kicker">
           <T k="leaderboards.eyebrow" />
         </p>
-        <h1>
+        <h1 className="page-title gold-text">
           <T k="leaderboards.title" />
         </h1>
-        <p className="subtitle">
-          <T k="leaderboards.subtitle" />
-        </p>
+        <div className="divider" aria-hidden="true">
+          <span className="diamond" />
+        </div>
       </section>
-      <div className="divider">
-        <span className="hex-node" aria-hidden="true" />
-      </div>
       <LeaderboardExplorer boards={boards} catalog={STAT_CATALOG} />
     </>
   );

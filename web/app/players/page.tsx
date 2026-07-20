@@ -6,20 +6,20 @@ export default function PlayersPage() {
   const players = listPlayers(2000);
   return (
     <>
-      <section className="hero">
-        <p className="eyebrow">
+      <section className="page-head">
+        <p className="kicker">
           <T k="players.eyebrow" />
         </p>
-        <h1>
+        <h1 className="page-title gold-text">
           <T k="players.title" />
         </h1>
-        <p className="subtitle">
+        <div className="divider" aria-hidden="true">
+          <span className="diamond" />
+        </div>
+        <p className="page-sub">
           <T k="players.subtitle" vars={{ count: players.length }} />
         </p>
       </section>
-      <div className="divider">
-        <span className="hex-node" aria-hidden="true" />
-      </div>
       <PlayerSearch players={players} />
     </>
   );

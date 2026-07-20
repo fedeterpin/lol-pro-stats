@@ -1,11 +1,12 @@
-# ETL de LoL Pro Stats — extracción desde Leaguepedia (Cargo) y Oracle's Elixir.
-# Fork de mwcleric recomendado por Leaguepedia: reintenta ante los nuevos rate-limits
-# de Cargo (ver Help:Leaguepedia_API). Requiere login con bot password + email confirmado.
+# LoL Pro Stats ETL — extraction from Leaguepedia (Cargo) and Oracle's Elixir.
+# mwcleric fork recommended by Leaguepedia: retries on Cargo's new rate limits
+# (see Help:Leaguepedia_API). Needs a bot-password login + a confirmed email.
 mwcleric @ git+https://github.com/arbolitoloco1/mwcleric@empty_string_fix
 mwrogue>=0.1.5
-# Validación de esquemas de filas.
+# Row-schema validation.
 pydantic>=2.6
-# HTTP para Oracle's Elixir (descarga de CSVs) y utilidades.
+# HTTP for Oracle's Elixir (CSV downloads) and utilities.
 httpx>=0.27
-# Manejo de CSVs grandes de Oracle's Elixir (Fase 2).
+# Handling Oracle's Elixir's large CSVs (Phase 2).
 polars>=0.20
+</content>

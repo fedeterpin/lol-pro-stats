@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Export estático (SSG) para servir desde Cloudflare Pages sin runtime de servidor.
-  // La DB SQLite se lee en build time (server components / generateStaticParams).
+  // Static export (SSG) so Cloudflare Pages can serve it with no server runtime.
+  // The SQLite DB is read at build time (server components / generateStaticParams).
   output: "export",
   images: { unoptimized: true },
-  // better-sqlite3 es nativo y solo se usa en build (no se bundlea al cliente).
+  // better-sqlite3 is native and only used at build time (never bundled for the client).
   serverExternalPackages: ["better-sqlite3"],
 };
 

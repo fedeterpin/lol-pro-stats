@@ -9,7 +9,7 @@ __pycache__/
 data/raw/
 data/*.sqlite
 data/*.sqlite-*
-# DB slim (solo gold) commiteada para el build de la web:
+# Slim (gold-only) DB, committed as the source of the web build:
 !data/web.sqlite
 etl/state/watermarks.json
 

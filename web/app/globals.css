@@ -56,6 +56,14 @@
 html { -webkit-text-size-adjust: 100%; }
 html, body { margin: 0; padding: 0; }
 
+/* Reserve the scrollbar gutter always, so navigating between a short page and a
+   long one does not shift the layout width. Browsers with overlay scrollbars
+   (macOS, mobile) reserve nothing, so there is no visual cost there. */
+html { scrollbar-gutter: stable; }
+@supports not (scrollbar-gutter: stable) {
+  html { overflow-y: scroll; }
+}
+
 body {
   background: var(--bg);
   color: var(--text);

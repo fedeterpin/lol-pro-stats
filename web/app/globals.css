@@ -50,8 +50,11 @@ html, body { margin: 0; padding: 0; }
 
 /* Reserve the scrollbar gutter always, so navigating between a short page and a
    long one does not shift the layout width. Browsers with overlay scrollbars
-   (macOS, mobile) reserve nothing, so there is no visual cost there. */
-html { scrollbar-gutter: stable; }
+   (macOS, mobile) reserve nothing, so there is no visual cost there.
+   `color-scheme: dark` is what keeps that reserved strip dark: without it the UA
+   paints the gutter with its light default track, which reads as a white vertical
+   line down the right edge on pages short enough to need no scrollbar. */
+html { color-scheme: dark; scrollbar-gutter: stable; }
 @supports not (scrollbar-gutter: stable) {
   html { overflow-y: scroll; }
 }

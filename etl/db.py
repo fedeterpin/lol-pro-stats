@@ -19,9 +19,42 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+# Columns added to tables that already exist in the wild. schema.sql only runs
+# CREATE TABLE IF NOT EXISTS, so an existing DB never picks them up on its own and
+# a full re-extract would mean re-crawling Cargo. Applied idempotently on every
+# apply_schema; keep in sync with db/schema.sql.
+MIGRATIONS: list[tuple[str, str, str]] = [
+    ("oe_player_link", "method", "TEXT"),
+    ("player_career_stats", "economy_games", "INTEGER"),
+    ("player_career_stats", "gd15", "REAL"),
+    ("player_career_stats", "gold15", "REAL"),
+    ("player_career_stats", "cs_per_min", "REAL"),
+    ("player_career_stats", "dpm", "REAL"),
+    ("player_index", "source", "TEXT"),
+]
+
+
+# Names that used to be a VIEW and are now a TABLE. SQLite refuses DROP VIEW on a
+# table and CREATE TABLE IF NOT EXISTS silently no-ops when a view holds the name, so
+# the stale object has to be removed before the schema runs.
+LEGACY_VIEWS = ["oe_resolved_games"]
+
+
 def apply_schema(conn: sqlite3.Connection, schema_path: Path | None = None) -> None:
+    for name in LEGACY_VIEWS:
+        row = conn.execute(
+            "SELECT type FROM sqlite_master WHERE name = ?", (name,)).fetchone()
+        if row and row[0] == "view":
+            conn.execute(f"DROP VIEW {name}")
     sql = (schema_path or config.SCHEMA_PATH).read_text(encoding="utf-8")
     conn.executescript(sql)
+    tables = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    for table, column, decl in MIGRATIONS:
+        if table not in tables:
+            continue  # freshly created from schema.sql, already has it
+        if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
     conn.commit()
 
 

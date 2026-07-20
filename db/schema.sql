@@ -161,6 +161,15 @@ CREATE TABLE IF NOT EXISTS player_career_stats (
     assists     INTEGER,
     kda         REAL,            -- (kills+assists)/max(deaths,1)
     win_rate    REAL,
+    -- Per-timing economy, Oracle's Elixir only, so NULL on Leaguepedia-sourced
+    -- scopes. Averaged over datacompleteness='complete' games ONLY, which is what
+    -- economy_games counts — it is smaller than `games` and can be 0 (the LPL has
+    -- had no timings since 2022). Rank on these only above config.OE_MIN_COMPLETE_GAMES.
+    economy_games INTEGER,
+    gd15        REAL,            -- avg gold difference vs lane opponent at 15 min
+    gold15      REAL,            -- avg gold at 15 min
+    cs_per_min  REAL,
+    dpm         REAL,            -- damage to champions per minute
     PRIMARY KEY (player_id, scope)
 );
 
@@ -189,7 +198,8 @@ CREATE TABLE IF NOT EXISTS records (
 
 -- Player index (denormalized): slug resolution + header + list/search.
 CREATE TABLE IF NOT EXISTS player_index (
-    player_id     TEXT PRIMARY KEY,   -- == Link
+    player_id     TEXT PRIMARY KEY,   -- Leaguepedia Link, or an OE playerid for regional-only players
+    source        TEXT,               -- 'leaguepedia' (full profile) | 'oe' (regional only: no bio, photo or score)
     display_id    TEXT,
     slug          TEXT,               -- for the URL /players/<slug>
     name          TEXT,               -- real name
@@ -390,3 +400,51 @@ CREATE TABLE IF NOT EXISTS oe_leagues (
     region_label TEXT NOT NULL,     -- display name
     tier         TEXT NOT NULL      -- 'major' | 'regional' | 'intl'
 );
+
+-- OE games Leaguepedia already has (matched on the normalized platform game id).
+-- Leaguepedia is authoritative for these, so the gold layer excludes them from OE
+-- aggregation or the game is counted twice. Rebuilt by etl.oe_ingest.
+-- Within the allowlist these are the Worlds regional finals, which OE labels with
+-- the modern league code (LEC/LCK/LCS/LMS/OGN) while Leaguepedia files them under
+-- League='World Championship'.
+CREATE TABLE IF NOT EXISTS oe_duplicate_games (
+    gameid_norm TEXT PRIMARY KEY
+);
+
+-- Every OE player-game the gold layer is allowed to aggregate: allowlisted league,
+-- not already in Leaguepedia, and resolved to a canonical player id — the
+-- Leaguepedia Link when the crosswalk found one, otherwise the OE playerid, which
+-- is how regional-only players enter the almanac.
+-- Materialized (not a view) and indexed by player_id: the gold layer scans it once
+-- per scope and once per player, and as a view over a 994k-row join each of those
+-- was a full scan.
+CREATE TABLE IF NOT EXISTS oe_resolved_games (
+    player_id         TEXT NOT NULL,  -- Leaguepedia Link, or the OE playerid when unmapped
+    is_leaguepedia    INTEGER,        -- 1 when the crosswalk resolved a Link
+    league_scope      TEXT,           -- 'regional' | 'intl_secondary'
+    region            TEXT,
+    region_label      TEXT,
+    league            TEXT,
+    year              INTEGER,
+    position          TEXT,
+    teamname          TEXT,
+    champion          TEXT,
+    datacompleteness  TEXT,
+    result            INTEGER,
+    kills             INTEGER,
+    deaths            INTEGER,
+    assists           INTEGER,
+    pentakills        INTEGER,
+    -- @15 snapshots: absolute values at a fixed timestamp, so averaging them is
+    -- sound. CS/min and DPM are NOT averaged per game — they are derived from these
+    -- totals, same rule as KDA.
+    golddiffat15      REAL,
+    goldat15          INTEGER,
+    total_cs          INTEGER,
+    damagetochampions INTEGER,
+    gamelength        INTEGER,
+    gameid            TEXT,
+    gameid_norm       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_oerg_player ON oe_resolved_games(player_id);
+CREATE INDEX IF NOT EXISTS idx_oerg_scope  ON oe_resolved_games(league_scope, region);

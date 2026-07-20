@@ -11,10 +11,15 @@ import sqlite3
 from etl import config
 
 WEB_DB = config.DATA_DIR / "web.sqlite"
-# Silver (scoreboard, etc.): the ETL uses them to compute gold, the web does not.
-DROP_TABLES = ["scoreboard_players", "scoreboard_games", "players",
-               "player_redirects", "tournaments", "tournament_results",
-               "tournament_players"]
+# The tables the web reads. An ALLOWLIST, not a list of silver tables to drop: a
+# blacklist has to be updated for every new silver table, and forgetting one ships
+# it to the edge unnoticed (Oracle's Elixir alone adds ~1.4M rows of silver).
+KEEP_TABLES = {
+    "player_index", "player_career_stats", "player_champions", "player_teams",
+    "player_titles", "champion_stats", "leaderboards", "records",
+    "oe_leagues",   # 25-row dimension: region labels for the regional scopes
+    "etl_meta",
+}
 
 
 def main() -> None:
@@ -24,8 +29,11 @@ def main() -> None:
         if p.exists():
             p.unlink()
     conn = sqlite3.connect(WEB_DB)
-    for t in DROP_TABLES:
-        conn.execute(f"DROP TABLE IF EXISTS {t}")
+    tables = [r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")]
+    for t in tables:
+        if t not in KEEP_TABLES:
+            conn.execute(f"DROP TABLE IF EXISTS {t}")
     # the ETL checkpoints are not useful in the web
     conn.execute("""DELETE FROM etl_meta WHERE key LIKE 'loaded:%' OR key LIKE 'sweep:%'
                     OR key LIKE 'month:%' OR key LIKE 'meta:%' OR key LIKE 'year:%'""")

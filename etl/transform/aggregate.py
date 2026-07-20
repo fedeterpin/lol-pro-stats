@@ -14,6 +14,8 @@ import sqlite3
 from etl import config
 
 ROLES = ["Top", "Jungle", "Mid", "Bot", "Support"]
+OE_POSITION_TO_ROLE = {"top": "Top", "jng": "Jungle", "mid": "Mid",
+                       "bot": "Bot", "sup": "Support"}
 
 # --- Fandom CDN image URLs (no UA blocking; built by MD5) ---
 _CDN = "https://static.wikia.nocookie.net/lolesports_gamepedia_en/images"
@@ -90,6 +92,92 @@ def compute_career_stats(conn: sqlite3.Connection) -> None:
 
 
 # ---------------------------------------------------------------------------
+def _has_oe(conn: sqlite3.Connection) -> bool:
+    """Whether Oracle's Elixir silver has been ingested (etl.oe_ingest)."""
+    if not conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'oe_resolved_games'").fetchone()[0]:
+        return False
+    return bool(conn.execute("SELECT COUNT(*) FROM oe_resolved_games").fetchone()[0])
+
+
+# Oracle's Elixir scopes. `all` and `intl_premier` stay Leaguepedia-only so no
+# existing record moves; regional play lands here instead.
+def _oe_career_query(where_extra: str) -> str:
+    return f"""
+        SELECT
+            player_id,
+            COUNT(DISTINCT gameid)          AS games,
+            SUM(COALESCE(result, 0))        AS wins,
+            SUM(COALESCE(kills, 0))         AS kills,
+            SUM(COALESCE(deaths, 0))        AS deaths,
+            SUM(COALESCE(assists, 0))       AS assists,
+            -- @15 economy: only the games that actually carry the timings.
+            SUM(golddiffat15 IS NOT NULL)   AS economy_games,
+            AVG(golddiffat15)               AS gd15,
+            AVG(goldat15)                   AS gold15,
+            SUM(COALESCE(total_cs, 0))            AS cs,
+            SUM(COALESCE(damagetochampions, 0))   AS damage,
+            SUM(COALESCE(gamelength, 0))          AS seconds
+        FROM oe_resolved_games
+        WHERE {where_extra}
+        GROUP BY player_id
+    """
+
+
+def _oe_scopes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
+    """(scope name, WHERE clause) for every OE scope: the combined regional one,
+    one per region, and the secondary internationals."""
+    scopes = [
+        (config.OE_SCOPE_REGIONAL, "league_scope = 'regional'"),
+        (config.OE_SCOPE_INTL_SECONDARY, "league_scope = 'intl_secondary'"),
+    ]
+    regions = conn.execute(
+        "SELECT DISTINCT region FROM oe_leagues WHERE scope = 'regional' ORDER BY region")
+    scopes += [(f"region:{r[0]}", f"league_scope = 'regional' AND region = '{r[0]}'")
+               for r in regions]
+    return scopes
+
+
+def compute_oe_career_stats(conn: sqlite3.Connection) -> None:
+    """Regional / secondary-international career stats, added to player_career_stats
+    alongside the Leaguepedia-sourced scopes."""
+    for scope, where in _oe_scopes(conn):
+        conn.execute("DELETE FROM player_career_stats WHERE scope = ?", (scope,))
+        payload = []
+        for r in conn.execute(_oe_career_query(where)).fetchall():
+            games, wins = r["games"] or 0, r["wins"] or 0
+            if not games:
+                continue
+            kills, deaths, assists = r["kills"] or 0, r["deaths"] or 0, r["assists"] or 0
+            minutes = (r["seconds"] or 0) / 60.0
+            payload.append((
+                r["player_id"], scope, None, games, wins, games - wins,
+                kills, deaths, assists,
+                round((kills + assists) / max(deaths, 1), 4),
+                round(wins / games, 4),
+                r["economy_games"] or 0,
+                round(r["gd15"], 1) if r["gd15"] is not None else None,
+                round(r["gold15"], 1) if r["gold15"] is not None else None,
+                round((r["cs"] or 0) / minutes, 2) if minutes else None,
+                round((r["damage"] or 0) / minutes, 1) if minutes else None,
+            ))
+        conn.executemany(
+            """INSERT OR REPLACE INTO player_career_stats
+               (player_id, scope, display_id, games, wins, losses, kills, deaths,
+                assists, kda, win_rate, economy_games, gd15, gold15, cs_per_min, dpm)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
+    # display_id is filled in once the index knows each player's canonical handle.
+    conn.execute("""
+        UPDATE player_career_stats SET display_id = COALESCE(
+            (SELECT P.ID FROM players P WHERE P.OverviewPage = player_career_stats.player_id),
+            (SELECT pl.playername FROM oe_player_link pl
+              WHERE pl.playerid = player_career_stats.player_id),
+            player_id)
+        WHERE display_id IS NULL""")
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
 def compute_player_champions(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM player_champions")
     rows = conn.execute("""
@@ -107,6 +195,20 @@ def compute_player_champions(conn: sqlite3.Connection) -> None:
         """INSERT INTO player_champions
            (player_id, champion, games, wins, kills, deaths, assists, kda)
            VALUES (?,?,?,?,?,?,?,?)""", payload)
+    # Champion pool for regional-only players, whose games Leaguepedia does not have
+    # at all. Restricted to is_leaguepedia = 0 so the pools of players who appear in
+    # both sources keep being the Leaguepedia-sourced international ones.
+    if _has_oe(conn):
+        conn.execute("""
+            INSERT INTO player_champions
+                (player_id, champion, games, wins, kills, deaths, assists, kda)
+            SELECT player_id, champion, COUNT(*), SUM(COALESCE(result, 0)),
+                   SUM(COALESCE(kills, 0)), SUM(COALESCE(deaths, 0)), SUM(COALESCE(assists, 0)),
+                   ROUND((SUM(COALESCE(kills, 0)) + SUM(COALESCE(assists, 0)))
+                         / CAST(MAX(SUM(COALESCE(deaths, 0)), 1) AS REAL), 4)
+            FROM oe_resolved_games
+            WHERE is_leaguepedia = 0 AND champion IS NOT NULL AND champion <> ''
+            GROUP BY player_id, champion""")
     conn.commit()
 
 
@@ -127,6 +229,16 @@ def compute_player_teams(conn: sqlite3.Connection) -> None:
         FROM scoreboard_players
         WHERE Link IS NOT NULL AND Link <> '' AND Team IS NOT NULL AND Team <> ''
         GROUP BY Link, Team""")
+    # Team history for regional-only players (see compute_player_champions).
+    if _has_oe(conn):
+        conn.execute("""
+            INSERT INTO player_teams
+                (player_id, team, team_logo_url, first_year, last_year, games)
+            SELECT player_id, teamname, team_logo(teamname),
+                   CAST(MIN(year) AS TEXT), CAST(MAX(year) AS TEXT), COUNT(*)
+            FROM oe_resolved_games
+            WHERE is_leaguepedia = 0 AND teamname IS NOT NULL AND teamname <> ''
+            GROUP BY player_id, teamname""")
     conn.commit()
 
 
@@ -223,29 +335,64 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
                ON pin.player_id = pcs.player_id AND pin.scope = 'intl_premier'
         WHERE pcs.scope = 'all'
         ORDER BY pcs.games DESC""").fetchall()
+    # Regional-only players: they have OE games but never appeared at an international,
+    # so Leaguepedia has no page for them — no bio, no photo, no titles, no Legacy
+    # Score. Listed AFTER the Leaguepedia rows so those keep the unsuffixed slug when
+    # two players share a handle.
+    oe_rows = conn.execute("""
+        SELECT pcs.player_id, pcs.display_id, pcs.games, pcs.wins, pcs.kda, pcs.win_rate
+        FROM player_career_stats pcs
+        WHERE pcs.scope = ?
+          AND pcs.player_id NOT IN (SELECT player_id FROM player_career_stats WHERE scope = 'all')
+        ORDER BY pcs.games DESC""", (config.OE_SCOPE_REGIONAL,)).fetchall()
+    # Role and current team for those players, in one pass each rather than a
+    # correlated subquery per player over 370k rows. Ordering ascending means the
+    # last write per player wins: most-played position, most recent team.
+    oe_position = {r[0]: r[1] for r in conn.execute(
+        "SELECT player_id, position FROM oe_resolved_games WHERE position <> '' "
+        "GROUP BY player_id, position ORDER BY COUNT(*)")}
+    oe_team = {r[0]: r[1] for r in conn.execute(
+        "SELECT player_id, teamname FROM oe_resolved_games WHERE teamname <> '' "
+        "GROUP BY player_id, teamname ORDER BY MAX(year)")}
+
     used: set[str] = set()
     payload = []
-    for r in rows:
-        slug = base = _slugify(r["display_id"] or r["player_id"])
+
+    def take_slug(text: str) -> str:
+        slug = base = _slugify(text)
         i = 2
         while slug in used:
             slug = f"{base}-{i}"
             i += 1
         used.add(slug)
+        return slug
+
+    for r in rows:
+        slug = take_slug(r["display_id"] or r["player_id"])
         other = (r["intl_titles"] or 0) - (r["worlds_titles"] or 0) - (r["msi_titles"] or 0)
         score, breakdown = _legacy_score(r["worlds_titles"], r["msi_titles"], other,
                                          r["worlds_appearances"], r["intl_games"], r["kda_intl"])
-        payload.append((r["player_id"], r["display_id"], slug, r["name"], r["role"],
-                        r["country"], r["team"], r["is_retired"], r["games"], r["wins"],
-                        r["kda"], r["win_rate"], r["intl_titles"], r["worlds_titles"],
-                        r["msi_titles"], r["worlds_appearances"], r["intl_games"],
-                        r["kda_intl"], score, json.dumps(breakdown), r["image_filename"],
-                        cdn_image(r["image_filename"]), team_logo(r["team"])))
+        payload.append((r["player_id"], "leaguepedia", r["display_id"], slug, r["name"],
+                        r["role"], r["country"], r["team"], r["is_retired"], r["games"],
+                        r["wins"], r["kda"], r["win_rate"], r["intl_titles"],
+                        r["worlds_titles"], r["msi_titles"], r["worlds_appearances"],
+                        r["intl_games"], r["kda_intl"], score, json.dumps(breakdown),
+                        r["image_filename"], cdn_image(r["image_filename"]),
+                        team_logo(r["team"])))
+
+    for r in oe_rows:
+        slug = take_slug(r["display_id"] or r["player_id"])
+        team = oe_team.get(r["player_id"])
+        payload.append((r["player_id"], "oe", r["display_id"], slug, None,
+                        OE_POSITION_TO_ROLE.get(oe_position.get(r["player_id"])), None,
+                        team, None, r["games"], r["wins"], r["kda"], r["win_rate"],
+                        0, 0, 0, 0, 0, None, 0, None, None, None, team_logo(team)))
+
     conn.executemany("""INSERT INTO player_index
-        (player_id, display_id, slug, name, role, country, team, is_retired, games,
+        (player_id, source, display_id, slug, name, role, country, team, is_retired, games,
          wins, kda, win_rate, intl_titles, worlds_titles, msi_titles, worlds_appearances,
          intl_games, kda_intl, score, score_breakdown, image_filename, image_url, team_logo_url)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
     conn.commit()
 
 
@@ -306,6 +453,38 @@ def compute_leaderboards(conn: sqlite3.Connection, top_n: int = 200) -> None:
     _store_leaderboard(conn, "worlds_titles", "all", _titles(conn, "World Championship", top_n))
     _store_leaderboard(conn, "msi_titles", "all", _titles(conn, "Mid-Season Invitational", top_n))
     _store_leaderboard(conn, "worlds_appearances", "all", _worlds_appearances(conn, top_n))
+
+
+# Leaderboards computed for every OE scope.
+# (stat, column, threshold key, column the threshold applies to and that is shown
+#  as the sample). Economy stats rank on economy_games because a player's games and
+# their games WITH timings are not the same number — see OE_MIN_COMPLETE_GAMES.
+OE_STATS = [
+    ("career_kda",   "kda",        "regional_kda",      "games"),
+    ("games_played", "games",      None,                "games"),
+    ("career_kills", "kills",      None,                "games"),
+    ("win_rate",     "win_rate",   "regional_win_rate", "games"),
+    ("gd15",         "gd15",       None,                "economy_games"),
+    ("gold15",       "gold15",     None,                "economy_games"),
+    ("cs_per_min",   "cs_per_min", "regional_kda",      "games"),
+    ("dpm",          "dpm",        "regional_kda",      "games"),
+]
+
+
+def compute_oe_leaderboards(conn: sqlite3.Connection, top_n: int = 200) -> None:
+    for scope, _ in _oe_scopes(conn):
+        for stat, col, thr_key, sample in OE_STATS:
+            thr = config.THRESHOLDS.get(thr_key) if thr_key else (
+                config.OE_MIN_COMPLETE_GAMES if sample == "economy_games" else None)
+            where = f"AND {sample} >= {thr}" if thr else ""
+            rows = conn.execute(
+                f"""SELECT player_id, display_id, {col} AS value, {sample} AS sample
+                    FROM player_career_stats
+                    WHERE scope = ? AND {col} IS NOT NULL {where}
+                    ORDER BY value DESC, {sample} DESC LIMIT ?""", (scope, top_n)).fetchall()
+            _store_leaderboard(conn, stat, scope,
+                               [(r["player_id"], r["display_id"], r["value"], r["sample"])
+                                for r in rows])
 
 
 def _titles(conn, league: str | None, top_n: int) -> list[tuple]:
@@ -384,11 +563,17 @@ def compute_records(conn: sqlite3.Connection) -> None:
 def run_all(conn: sqlite3.Connection) -> None:
     compute_tiers(conn)
     compute_career_stats(conn)
+    # Oracle's Elixir scopes, only when its silver has been ingested (etl.oe_ingest).
+    has_oe = _has_oe(conn)
+    if has_oe:
+        compute_oe_career_stats(conn)
     compute_player_titles(conn)
     compute_player_teams(conn)
     compute_player_champions(conn)
     compute_champion_stats(conn)
     compute_leaderboards(conn)
+    if has_oe:
+        compute_oe_leaderboards(conn)
     compute_player_index(conn)
     compute_score_leaderboard(conn)
     compute_records(conn)

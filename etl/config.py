@@ -273,6 +273,11 @@ THRESHOLDS = {
     "win_rate": 200,
     "single_tournament_kda": 5,
     "champion_win_rate": 15,
+    # Regional scopes: samples are far larger than international ones (a domestic
+    # season is ~100 games), so 100 keeps 58-183 qualifiers per region instead of
+    # the handful 200 would leave in the smaller ones.
+    "regional_kda": 100,
+    "regional_win_rate": 100,
 }
 
 ATTRIBUTION = {

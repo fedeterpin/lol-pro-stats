@@ -179,6 +179,24 @@ def sync_leagues(conn) -> None:
     print(f"  allowlist: {len(rows)} leagues"
           + (f" | WARNING: not found in the data: {', '.join(missing)}" if missing else ""))
 
+    # Games Leaguepedia already has. Materialized rather than computed inline because
+    # the normalization defeats the index on RiotPlatformGameId, and oe_resolved_games
+    # would redo it on every gold query.
+    conn.execute("DELETE FROM oe_duplicate_games")
+    conn.execute(
+        "INSERT INTO oe_duplicate_games (gameid_norm) "
+        "SELECT DISTINCT g.gameid_norm FROM oe_player_games g "
+        "WHERE g.gameid_norm IN ("
+        "  SELECT UPPER(REPLACE(REPLACE(RiotPlatformGameId, '_', ''), '-', '')) "
+        "  FROM scoreboard_games WHERE RiotPlatformGameId IS NOT NULL AND RiotPlatformGameId <> '')")
+    conn.commit()
+    dup = conn.execute("SELECT COUNT(*) FROM oe_duplicate_games").fetchone()[0]
+    in_allow = conn.execute(
+        "SELECT COUNT(DISTINCT g.gameid_norm) FROM oe_player_games g "
+        "JOIN oe_leagues l ON l.league = g.league "
+        "WHERE g.gameid_norm IN (SELECT gameid_norm FROM oe_duplicate_games)").fetchone()[0]
+    print(f"  dedup: {dup:,} OE games already in Leaguepedia ({in_allow:,} of them allowlisted)")
+
 
 def recover_by_name(conn, mapped: dict[str, str], names: dict[str, str]) -> dict[str, str]:
     """Second pass: map the OE players the game-id vote could not reach.
@@ -312,6 +330,36 @@ def build_crosswalk(conn) -> None:
           f"| {len(all_pids) - mapped:,} OE-only")
 
 
+def build_resolved_games(conn) -> None:
+    """Materialize what the gold layer aggregates: allowlisted, deduped, and keyed by
+    a canonical player id. Depends on the allowlist, the dedup table and the crosswalk,
+    so it runs last."""
+    conn.execute("DELETE FROM oe_resolved_games")
+    conn.execute("""
+        INSERT INTO oe_resolved_games (
+            player_id, is_leaguepedia, league_scope, region, region_label, league, year,
+            position, teamname, champion, datacompleteness, result, kills, deaths, assists,
+            pentakills, golddiffat15, goldat15, total_cs, damagetochampions, gamelength,
+            gameid, gameid_norm)
+        SELECT
+            COALESCE(NULLIF(pl.link, ''), g.playerid),
+            CASE WHEN pl.link IS NOT NULL AND pl.link <> '' THEN 1 ELSE 0 END,
+            lg.scope, lg.region, lg.region_label, g.league, g.year,
+            g.position, g.teamname, g.champion, g.datacompleteness, g.result,
+            g.kills, g.deaths, g.assists, g.pentakills,
+            g.golddiffat15, g.goldat15, g.total_cs, g.damagetochampions, g.gamelength,
+            g.gameid, g.gameid_norm
+        FROM oe_player_games g
+        JOIN oe_leagues lg ON lg.league = g.league
+        LEFT JOIN oe_player_link pl ON pl.playerid = g.playerid
+        WHERE g.playerid IS NOT NULL AND g.playerid <> ''
+          AND g.gameid_norm NOT IN (SELECT gameid_norm FROM oe_duplicate_games)""")
+    conn.commit()
+    n, players = conn.execute(
+        "SELECT COUNT(*), COUNT(DISTINCT player_id) FROM oe_resolved_games").fetchone()
+    print(f"  resolved: {n:,} player-games ready for the gold layer | {players:,} players")
+
+
 def summary(conn) -> None:
     cur = conn.cursor()
     npg = cur.execute("SELECT COUNT(*) FROM oe_player_games").fetchone()[0]
@@ -374,11 +422,6 @@ def main() -> None:
 
     conn = db.connect()
     db.apply_schema(conn)
-    # apply_schema only runs CREATE TABLE IF NOT EXISTS, so a column added to an
-    # existing table needs this. Idempotent.
-    if "method" not in {r[1] for r in conn.execute("PRAGMA table_info(oe_player_link)")}:
-        conn.execute("ALTER TABLE oe_player_link ADD COLUMN method TEXT")
-        conn.commit()
     if not args.no_load:
         print("Loading OE CSVs...")
         load_csvs(conn, years)
@@ -386,6 +429,7 @@ def main() -> None:
     sync_leagues(conn)
     print("Building identity crosswalk...")
     build_crosswalk(conn)
+    build_resolved_games(conn)
     summary(conn)
     conn.close()
 

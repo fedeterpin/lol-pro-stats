@@ -1,4 +1,5 @@
 import { listPlayers } from "@/lib/db";
+import { T } from "@/lib/i18n";
 import PlayerSearch from "@/components/PlayerSearch";
 
 export default function PlayersPage() {
@@ -6,14 +7,17 @@ export default function PlayersPage() {
   return (
     <>
       <section className="page-head">
-        <p className="kicker">Every name on the stage</p>
-        <h1 className="page-title gold-text">Players</h1>
+        <p className="kicker">
+          <T k="players.eyebrow" />
+        </p>
+        <h1 className="page-title gold-text">
+          <T k="players.title" />
+        </h1>
         <div className="divider" aria-hidden="true">
           <span className="diamond" />
         </div>
         <p className="page-sub">
-          {players.length.toLocaleString("en")} players who have set foot on an
-          international stage. Search by name, team or role.
+          <T k="players.subtitle" vars={{ count: players.length }} />
         </p>
       </section>
       <PlayerSearch players={players} />

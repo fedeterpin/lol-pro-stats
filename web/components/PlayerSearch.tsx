@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { PlayerRow } from "@/lib/db";
-import { ROLES } from "@/lib/stats";
+import { formatValue, ROLES } from "@/lib/stats";
+import { useI18n } from "@/lib/i18n";
 
+// Role names are not translated (scene convention); only shortened.
 const ROLE_SHORT: Record<string, string> = {
   Top: "Top",
   Jungle: "Jng",
@@ -16,6 +18,7 @@ const ROLE_SHORT: Record<string, string> = {
 const MAX_ROWS = 100;
 
 export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
+  const { t, locale } = useI18n();
   const [q, setQ] = useState("");
   const [role, setRole] = useState("all");
 
@@ -43,10 +46,10 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
             <input
               className="search-input"
               type="search"
-              placeholder="Search a player, team or role…"
+              placeholder={t("players.search.placeholder")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              aria-label="Search players"
+              aria-label={t("players.search.aria")}
             />
           </div>
         </div>
@@ -65,16 +68,16 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="empty">No players match “{q}”.</p>
+        <p className="empty">{t("common.noMatch", { q })}</p>
       ) : (
         <div className="tbl tbl-players">
           <div className="tbl-head">
-            <span className="th-lab">Player</span>
-            <span className="th-lab col-role">Role</span>
-            <span className="th-lab col-team">Team</span>
-            <span className="th-lab th-num col-games">Games</span>
-            <span className="th-lab th-num">KDA</span>
-            <span className="th-lab th-num">Win rate</span>
+            <span className="th-lab">{t("common.player")}</span>
+            <span className="th-lab col-role">{t("common.role")}</span>
+            <span className="th-lab col-team">{t("common.team")}</span>
+            <span className="th-lab th-num col-games">{t("common.games")}</span>
+            <span className="th-lab th-num">{t("common.kda")}</span>
+            <span className="th-lab th-num">{t("common.winRate")}</span>
           </div>
           {rows.map((p, i) => (
             <Link
@@ -95,7 +98,7 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
                 <span className="pcell-id">
                   <span className="pname">{p.display_id}</span>
                   {p.intl_titles > 0 && (
-                    <span className="ptag" title="International titles">
+                    <span className="ptag" title={t("players.card.intlTitles")}>
                       ★ {p.intl_titles}
                     </span>
                   )}
@@ -104,16 +107,19 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
               <span className="cell-role col-role">{p.role ?? "—"}</span>
               <span className="cell-role col-team">{p.team ?? "—"}</span>
               <span className="cell-games cell-num col-games">{p.games}</span>
-              <span className="cell-score cell-num">{p.kda.toFixed(2)}</span>
-              <span className="cell-num">{(p.win_rate * 100).toFixed(1)}%</span>
+              <span className="cell-score cell-num">
+                {formatValue("ratio", p.kda, locale)}
+              </span>
+              <span className="cell-num">
+                {formatValue("percent", p.win_rate, locale)}
+              </span>
             </Link>
           ))}
         </div>
       )}
       {filtered.length > MAX_ROWS && (
         <p className="tbl-count">
-          Showing {MAX_ROWS} of {filtered.length.toLocaleString("en")} — refine your
-          search to narrow it down.
+          {t("players.showing", { shown: MAX_ROWS, total: filtered.length })}
         </p>
       )}
     </>

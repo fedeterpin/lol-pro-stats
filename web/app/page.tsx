@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listPlayers } from "@/lib/db";
+import { T } from "@/lib/i18n";
 import HomeSearch, { type SearchPlayer } from "@/components/HomeSearch";
 
 export default function Home() {
@@ -19,28 +20,39 @@ export default function Home() {
       <div className="home-logo" aria-hidden="true">
         <i />
       </div>
-      <p className="kicker">League of Legends · Esports almanac</p>
-      <h1 className="page-title gold-text">Every pro, every record</h1>
+      <p className="kicker">
+        <T k="home.eyebrow" />
+      </p>
+      <h1 className="page-title gold-text">
+        <T k="home.title" />
+      </h1>
       <div className="divider" aria-hidden="true">
         <span className="diamond" />
       </div>
       <p className="page-sub">
-        Search any professional player to open their profile — legacy score, titles,
-        KDA and champion pool.
+        <T k="home.subtitle" />
       </p>
       <HomeSearch players={players} />
       <div className="home-links">
         <Link href="/records" className="btn">
-          <span>Hall of Records</span>
+          <span>
+            <T k="home.link.records" />
+          </span>
         </Link>
         <Link href="/leaderboards" className="btn">
-          <span>Leaderboards</span>
+          <span>
+            <T k="home.link.leaderboards" />
+          </span>
         </Link>
         <Link href="/players" className="btn">
-          <span>All players</span>
+          <span>
+            <T k="home.link.players" />
+          </span>
         </Link>
         <Link href="/champions" className="btn">
-          <span>Champions</span>
+          <span>
+            <T k="home.link.champions" />
+          </span>
         </Link>
       </div>
     </section>

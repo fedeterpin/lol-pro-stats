@@ -2,7 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> The code, comments and documentation of this repo are in **English** (the web UI was already in **English**). Keep that convention.
+> The code, comments and documentation of this repo are in **English**. Keep that
+> convention. The web UI itself is bilingual (English by default, Spanish auto-detected
+> from the browser) — its copy lives in `web/lib/i18n/messages.ts`, never inline in JSX.
 
 ## What it is
 
@@ -91,10 +93,22 @@ Cargo (Leaguepedia)  --extract-->  bronze  --load-->  SILVER  --transform-->  GO
   runtime**. `better-sqlite3` only runs at build time (`serverExternalPackages`).
 - `web/lib/db.ts` opens `web.sqlite` **readonly, one connection per call**, with a fallback
   to empty values if the DB does not exist (so the build does not blow up without data).
-- `web/lib/stats.ts::STAT_CATALOG` is the leaderboards catalog (label, format, whether it
-  has per-role variants). Adding a leaderboard = touch `aggregate.py` (to compute it)
-  **and** `STAT_CATALOG` (to display it).
+- `web/lib/stats.ts::STAT_CATALOG` is the leaderboards catalog (format, whether it has
+  per-role variants) — structure only, the copy lives in the dictionaries. Adding a
+  leaderboard = touch `aggregate.py` (to compute it), `STAT_CATALOG` (to display it)
+  **and** the `stat.<key>.{label,short,help}` keys in **both** dictionaries.
 - Player pages via `generateStaticParams` over `player_index.slug`.
+- **i18n (EN default, ES auto-detected)**: `web/lib/i18n/messages.ts` holds one flat
+  dictionary per locale; `en` is the source of truth and `es` is typed against it, so a
+  missing key is a compile error. Because the site is pure SSG there is no server to read
+  `Accept-Language`: every page is **built in English** and `LocaleProvider` swaps the copy
+  in the browser (`navigator.language`, overridable by the header switch and persisted in
+  `localStorage`). The provider must therefore start on `DEFAULT_LOCALE` and only switch
+  inside an effect — reading the browser during render would break hydration.
+  Client components call `useI18n().t("key")`; server components render `<T k="key" />`
+  (plus `<Num>` / `<StatValue>` for locale-aware number formatting). Only chrome is
+  translated: player handles, teams, champions, countries and roles come from the DB.
+  Page `metadata` (title/description) stays English — it is baked in at build time.
 - **Images**: not hosted; URLs to external CDNs are built — photos/logos from the
   Fandom CDN by MD5 hash (`aggregate.cdn_image`/`team_logo`), champions from Data
   Dragon (`lib/champion.ts`), roles from Community Dragon and flags from flagcdn

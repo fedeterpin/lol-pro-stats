@@ -1,4 +1,5 @@
 import { getChampionStats } from "@/lib/db";
+import { T } from "@/lib/i18n";
 import ChampionTable from "@/components/ChampionTable";
 
 export default function ChampionsPage() {
@@ -6,14 +7,17 @@ export default function ChampionsPage() {
   return (
     <>
       <section className="page-head">
-        <p className="kicker">The pick &amp; ban stage</p>
-        <h1 className="page-title gold-text">Champions</h1>
+        <p className="kicker">
+          <T k="champions.eyebrow" />
+        </p>
+        <h1 className="page-title gold-text">
+          <T k="champions.title" />
+        </h1>
         <div className="divider" aria-hidden="true">
           <span className="diamond" />
         </div>
         <p className="page-sub">
-          Every champion on the international stage — most picked, best win rate and
-          KDA. Sort the table or raise the minimum games.
+          <T k="champions.subtitle" />
         </p>
       </section>
       <ChampionTable champions={champions} />

@@ -3,9 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { LeaderboardRow } from "@/lib/db";
-import { formatValue, ROLES, type StatDef } from "@/lib/stats";
+import {
+  formatValue,
+  statHelpKey,
+  statLabelKey,
+  statShortKey,
+  ROLES,
+  type StatDef,
+} from "@/lib/stats";
+import { useI18n } from "@/lib/i18n";
+import type { MsgKey } from "@/lib/i18n/messages";
 
-const RANK_WORDS = ["First", "Second", "Third"];
+const RANK_WORDS: MsgKey[] = ["podium.first", "podium.second", "podium.third"];
+// Role names are not translated (scene convention); only shortened.
 const ROLE_SHORT: Record<string, string> = {
   all: "All",
   Top: "Top",
@@ -37,18 +47,19 @@ function Avatar({ row, size }: { row: LeaderboardRow; size: 30 | 56 | 68 }) {
 }
 
 function PodiumCard({ row, def }: { row: LeaderboardRow; def: StatDef }) {
+  const { t, locale } = useI18n();
   const pos = row.rank;
   const meta = [row.role, row.team].filter(Boolean).join(" · ");
   const body = (
     <span className="cutp-in">
-      <span className="podium-rankword">{RANK_WORDS[pos - 1]}</span>
+      <span className="podium-rankword">{t(RANK_WORDS[pos - 1])}</span>
       <Avatar row={row} size={pos === 1 ? 68 : 56} />
       <span className="podium-name">{row.display_id}</span>
       {meta && <span className="podium-meta">{meta}</span>}
       <span className={`podium-score${pos === 1 ? " gold-text" : ""}`}>
-        {formatValue(def.kind, row.value)}
+        {formatValue(def.kind, row.value, locale)}
       </span>
-      {pos === 1 && <span className="podium-unit">{def.short}</span>}
+      {pos === 1 && <span className="podium-unit">{t(statShortKey(def.key))}</span>}
     </span>
   );
   const cls = `cutp podium-card p${pos}${pos === 1 ? " featured" : ""}`;
@@ -68,6 +79,7 @@ export default function LeaderboardExplorer({
   boards: Record<string, Record<string, LeaderboardRow[]>>;
   catalog: StatDef[];
 }) {
+  const { t, locale } = useI18n();
   const [statKey, setStatKey] = useState(catalog[0]?.key ?? "");
   const [scope, setScope] = useState("all");
   const [expanded, setExpanded] = useState(false);
@@ -117,7 +129,7 @@ export default function LeaderboardExplorer({
       <div className="lb-layout">
         <aside className="rail">
           <div className="rail-group categories">
-            <p className="rail-label">Category</p>
+            <p className="rail-label">{t("leaderboards.category")}</p>
             <div className="rail-items">
               {catalog.map((s) => (
                 <button
@@ -129,7 +141,7 @@ export default function LeaderboardExplorer({
                     setExpanded(false);
                   }}
                 >
-                  {s.label}
+                  {t(statLabelKey(s.key))}
                 </button>
               ))}
             </div>
@@ -137,7 +149,7 @@ export default function LeaderboardExplorer({
 
           {def?.roleScoped && (
             <div className="rail-group">
-              <p className="rail-label">Role</p>
+              <p className="rail-label">{t("leaderboards.role")}</p>
               <div className="chips">
                 {["all", ...ROLES].map((r) => {
                   const sc = r === "all" ? "all" : `role:${r}`;
@@ -159,14 +171,11 @@ export default function LeaderboardExplorer({
             </div>
           )}
 
-          {def?.help && <p className="rail-note">{def.help}</p>}
+          {def && <p className="rail-note">{t(statHelpKey(def.key))}</p>}
         </aside>
 
         {data.length === 0 ? (
-          <p className="empty">
-            Not enough data for this leaderboard yet. The ETL is still loading — try
-            reloading in a little while.
-          </p>
+          <p className="empty">{t("leaderboards.empty")}</p>
         ) : (
           <div key={boardKey} className="tbl fade-swap">
             <div className="tbl-head">
@@ -177,14 +186,14 @@ export default function LeaderboardExplorer({
               >
                 #{arrow("rank")}
               </button>
-              <span className="th-lab">Player</span>
-              <span className="th-lab col-role">Role</span>
+              <span className="th-lab">{t("common.player")}</span>
+              <span className="th-lab col-role">{t("common.role")}</span>
               <button
                 type="button"
                 className={`th-btn th-num${sort.col === "value" ? " active" : ""}`}
                 onClick={() => toggleSort("value")}
               >
-                {def.short}
+                {t(statShortKey(def.key))}
                 {arrow("value")}
               </button>
               <button
@@ -192,7 +201,8 @@ export default function LeaderboardExplorer({
                 className={`th-btn th-num col-games${sort.col === "games" ? " active" : ""}`}
                 onClick={() => toggleSort("games")}
               >
-                Games{arrow("games")}
+                {t("common.games")}
+                {arrow("games")}
               </button>
             </div>
 
@@ -211,7 +221,7 @@ export default function LeaderboardExplorer({
                   </span>
                   <span className="cell-role col-role">{r.role ?? "—"}</span>
                   <span className="cell-score cell-num">
-                    {formatValue(def.kind, r.value)}
+                    {formatValue(def.kind, r.value, locale)}
                   </span>
                   <span className="cell-games cell-num col-games">{r.games ?? "—"}</span>
                 </>
@@ -231,7 +241,9 @@ export default function LeaderboardExplorer({
             {rest.length > COLLAPSED_ROWS && (
               <div className="tbl-foot">
                 <button type="button" onClick={() => setExpanded(!expanded)}>
-                  {expanded ? "Show top 20 ▴" : `Show all ${data.length} ▾`}
+                  {expanded
+                    ? t("leaderboards.showTop")
+                    : t("leaderboards.showAll", { n: data.length })}
                 </button>
               </div>
             )}

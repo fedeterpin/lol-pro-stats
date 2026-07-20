@@ -12,17 +12,20 @@ import {
 } from "@/lib/db";
 import { championSquare } from "@/lib/champion";
 import { roleIcon, countryFlag } from "@/lib/icons";
-import { STAT_BY_KEY, formatValue, scopeLabel } from "@/lib/stats";
+import { STAT_BY_KEY, statLabelKey } from "@/lib/stats";
+import { T, Num, StatValue, ScopeLabel } from "@/lib/i18n";
+import type { MsgKey } from "@/lib/i18n/messages";
 
 export function generateStaticParams() {
   return listPlayers(5000).map((p) => ({ slug: p.slug }));
 }
 
-const BD_PARTS = [
-  { key: "titles", label: "Titles" },
-  { key: "stage", label: "Stage" },
-  { key: "longevity", label: "Longevity" },
-  { key: "performance", label: "Performance" },
+// The legacy-score split, shown as micro-label + mono pairs (design spec).
+const BD_PARTS: { key: string; label: MsgKey }[] = [
+  { key: "titles", label: "player.breakdown.titles" },
+  { key: "stage", label: "player.breakdown.stage" },
+  { key: "longevity", label: "player.breakdown.longevity" },
+  { key: "performance", label: "player.breakdown.performance" },
 ];
 
 export default async function PlayerPage({
@@ -53,12 +56,22 @@ export default async function PlayerPage({
   const hasFirst = rankings.some((r) => r.rank === 1);
   const maxPoolGames = Math.max(...champs.map((c) => c.games), 1);
 
-  const tiles = [
-    { label: "Games", value: player.games.toLocaleString("en") },
-    { label: "Career KDA", value: player.kda.toFixed(2), accent: true },
-    { label: "Win rate", value: `${(player.win_rate * 100).toFixed(1)}%` },
-    { label: "Intl. titles", value: player.intl_titles },
-    { label: "Worlds titles", value: player.worlds_titles },
+  const tiles: { key: MsgKey; value: React.ReactNode; accent?: boolean }[] = [
+    { key: "player.tile.games", value: <Num value={player.games} /> },
+    {
+      key: "player.tile.careerKda",
+      value: <StatValue kind="ratio" value={player.kda} />,
+      accent: true,
+    },
+    {
+      key: "player.tile.winRate",
+      value: <StatValue kind="percent" value={player.win_rate} />,
+    },
+    { key: "player.tile.intlTitles", value: <Num value={player.intl_titles} /> },
+    {
+      key: "player.tile.worldsTitles",
+      value: <Num value={player.worlds_titles} />,
+    },
   ];
 
   return (
@@ -116,7 +129,11 @@ export default async function PlayerPage({
                 {player.country}
               </span>
             )}
-            {player.is_retired ? <span className="pchip retired">Retired</span> : null}
+            {player.is_retired ? (
+              <span className="pchip retired">
+                <T k="player.retired" />
+              </span>
+            ) : null}
           </p>
         </div>
       </header>
@@ -125,13 +142,18 @@ export default async function PlayerPage({
         <div className="cutp-in">
           <div className="score-main">
             <div className="score-num gold-text">
-              {player.score.toLocaleString("en")}
+              <Num value={player.score} />
             </div>
             <div className="score-cap">
-              <div className="score-label">Legacy score</div>
+              <div className="score-label">
+                <T k="player.legacyScore" />
+              </div>
               {scoreRank.rank > 0 && (
                 <div className="score-rank">
-                  #{scoreRank.rank} of {scoreRank.total.toLocaleString("en")}
+                  <T
+                    k="player.rank"
+                    vars={{ rank: scoreRank.rank, total: scoreRank.total }}
+                  />
                 </div>
               )}
             </div>
@@ -139,7 +161,9 @@ export default async function PlayerPage({
           <div className="score-parts">
             {BD_PARTS.map((p) => (
               <div className="spart" key={p.key}>
-                <span className="spart-label">{p.label}</span>
+                <span className="spart-label">
+                  <T k={p.label} />
+                </span>
                 <span className="spart-val">{breakdown[p.key] || 0}</span>
               </div>
             ))}
@@ -148,11 +172,15 @@ export default async function PlayerPage({
       </section>
 
       <div className="tile-row">
-        {tiles.map((t) => (
-          <div className="cutp cut14 tile" key={t.label}>
+        {tiles.map((tile) => (
+          <div className="cutp cut14 tile" key={tile.key}>
             <div className="cutp-in">
-              <div className={`tile-val${t.accent ? " accent" : ""}`}>{t.value}</div>
-              <div className="tile-label">{t.label}</div>
+              <div className={`tile-val${tile.accent ? " accent" : ""}`}>
+                {tile.value}
+              </div>
+              <div className="tile-label">
+                <T k={tile.key} />
+              </div>
             </div>
           </div>
         ))}
@@ -160,46 +188,54 @@ export default async function PlayerPage({
 
       {held.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Records held</h2>
+          <h2 className="block-title">
+            <T k="player.recordsHeld" />
+          </h2>
           <div className="held-list">
-            {held.map((r) => {
-              const def = STAT_BY_KEY[r.stat];
-              return (
-                <div className="held-row" key={`${r.stat}-${r.scope}`}>
-                  <span className={`rank-chip${r.rank <= 3 ? ` r${r.rank}` : ""}`}>
-                    #{r.rank}
-                  </span>
-                  <span className="held-name">
-                    {def.label}
-                    {r.scope !== "all" && <em> · {scopeLabel(r.scope)}</em>}
-                  </span>
-                  <span className="held-val">{formatValue(def.kind, r.value)}</span>
-                </div>
-              );
-            })}
+            {held.map((r) => (
+              <div className="held-row" key={`${r.stat}-${r.scope}`}>
+                <span className={`rank-chip${r.rank <= 3 ? ` r${r.rank}` : ""}`}>
+                  #{r.rank}
+                </span>
+                <span className="held-name">
+                  <T k={statLabelKey(r.stat)} />
+                  {r.scope !== "all" && (
+                    <em>
+                      {" "}
+                      · <ScopeLabel scope={r.scope} />
+                    </em>
+                  )}
+                </span>
+                <span className="held-val">
+                  <StatValue kind={STAT_BY_KEY[r.stat].kind} value={r.value} />
+                </span>
+              </div>
+            ))}
           </div>
         </section>
       )}
 
       {teams.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Team history</h2>
+          <h2 className="block-title">
+            <T k="player.teamHistory" />
+          </h2>
           <div className="th-list">
-            {teams.map((t) => (
-              <div className="th-row" key={t.team}>
-                {t.team_logo_url && (
+            {teams.map((team) => (
+              <div className="th-row" key={team.team}>
+                {team.team_logo_url && (
                   <span
                     className="th-logo"
-                    style={{ backgroundImage: `url(${t.team_logo_url})` }}
+                    style={{ backgroundImage: `url(${team.team_logo_url})` }}
                     aria-hidden="true"
                   />
                 )}
-                <span className="th-name">{t.team}</span>
+                <span className="th-name">{team.team}</span>
                 <span className="th-years">
-                  {t.first_year === t.last_year
-                    ? t.first_year
-                    : `${t.first_year}–${t.last_year}`}{" "}
-                  · {t.games} games
+                  {team.first_year === team.last_year
+                    ? team.first_year
+                    : `${team.first_year}–${team.last_year}`}{" "}
+                  · <T k="common.gamesCount" vars={{ n: team.games }} />
                 </span>
               </div>
             ))}
@@ -210,17 +246,17 @@ export default async function PlayerPage({
       {titles.length > 0 && (
         <section className="block">
           <h2 className="block-title">
-            Trophy case <em>· {titles.length}</em>
+            <T k="player.trophyCase" /> <em>· {titles.length}</em>
           </h2>
           <div className="trophy-list">
-            {titles.map((t) => (
-              <div className="trophy-row" key={t.overview_page}>
+            {titles.map((title) => (
+              <div className="trophy-row" key={title.overview_page}>
                 <span className="diamond" aria-hidden="true" />
                 <span className="trophy-event">
-                  {t.event}
-                  {t.team && <em>{t.team}</em>}
+                  {title.event}
+                  {title.team && <em>{title.team}</em>}
                 </span>
-                <span className="trophy-year">{t.year}</span>
+                <span className="trophy-year">{title.year}</span>
               </div>
             ))}
           </div>
@@ -229,7 +265,9 @@ export default async function PlayerPage({
 
       {champs.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Champion pool</h2>
+          <h2 className="block-title">
+            <T k="player.championPool" />
+          </h2>
           <div className="pool-list">
             {champs.map((c) => (
               <div className="pool-row" key={c.champion}>
@@ -239,12 +277,19 @@ export default async function PlayerPage({
                   aria-hidden="true"
                 />
                 <span className="pool-name">{c.champion}</span>
-                <span className="pool-num">{c.games} games</span>
+                <span className="pool-num">
+                  <T k="common.gamesCount" vars={{ n: c.games }} />
+                </span>
                 <span className="pool-num pool-wl">
-                  {c.wins}W {c.games - c.wins}L
+                  {c.wins}
+                  <T k="common.winShort" /> {c.games - c.wins}
+                  <T k="common.lossShort" />
                 </span>
                 <span className="pool-num pool-kda">
-                  <b>{c.kda.toFixed(2)}</b> KDA
+                  <b>
+                    <StatValue kind="ratio" value={c.kda} />
+                  </b>{" "}
+                  <T k="common.kda" />
                 </span>
                 <span className="pool-bar" aria-hidden="true">
                   <i style={{ width: `${(c.games / maxPoolGames) * 100}%` }} />

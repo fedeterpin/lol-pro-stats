@@ -3,17 +3,20 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useI18n } from "@/lib/i18n";
+import type { MsgKey } from "@/lib/i18n/messages";
 
-const LINKS = [
-  { href: "/", label: "Search" },
-  { href: "/leaderboards", label: "Leaderboards" },
-  { href: "/players", label: "Players" },
-  { href: "/champions", label: "Champions" },
-  { href: "/records", label: "Records" },
+const LINKS: { href: string; k: MsgKey }[] = [
+  { href: "/", k: "nav.search" },
+  { href: "/leaderboards", k: "nav.leaderboards" },
+  { href: "/players", k: "nav.players" },
+  { href: "/champions", k: "nav.champions" },
+  { href: "/records", k: "nav.records" },
 ];
 
 export default function SiteNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
   const isActive = (href: string) =>
@@ -26,7 +29,7 @@ export default function SiteNav() {
       className={isActive(l.href) ? "active" : undefined}
       onClick={() => setOpen(false)}
     >
-      {l.label}
+      {t(l.k)}
     </Link>
   ));
 
@@ -36,7 +39,7 @@ export default function SiteNav() {
       <button
         type="button"
         className="nav-toggle"
-        aria-label="Open menu"
+        aria-label="Menu"
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >

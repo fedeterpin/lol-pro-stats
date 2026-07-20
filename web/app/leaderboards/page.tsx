@@ -1,5 +1,6 @@
 import { getLeaderboard, type LeaderboardRow } from "@/lib/db";
 import { STAT_CATALOG, ROLES } from "@/lib/stats";
+import { T } from "@/lib/i18n";
 import LeaderboardExplorer from "@/components/LeaderboardExplorer";
 
 export type Boards = Record<string, Record<string, LeaderboardRow[]>>;
@@ -17,8 +18,12 @@ export default function LeaderboardsPage() {
   return (
     <>
       <section className="page-head">
-        <p className="kicker">The main stage, ranked</p>
-        <h1 className="page-title gold-text">Leaderboards</h1>
+        <p className="kicker">
+          <T k="leaderboards.eyebrow" />
+        </p>
+        <h1 className="page-title gold-text">
+          <T k="leaderboards.title" />
+        </h1>
         <div className="divider" aria-hidden="true">
           <span className="diamond" />
         </div>

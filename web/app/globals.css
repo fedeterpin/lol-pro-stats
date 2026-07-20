@@ -48,6 +48,14 @@
 html { -webkit-text-size-adjust: 100%; }
 html, body { margin: 0; padding: 0; }
 
+/* Reserve the scrollbar gutter always, so navigating between a short page and a
+   long one does not shift the layout width. Browsers with overlay scrollbars
+   (macOS, mobile) reserve nothing, so there is no visual cost there. */
+html { scrollbar-gutter: stable; }
+@supports not (scrollbar-gutter: stable) {
+  html { overflow-y: scroll; }
+}
+
 body {
   background: linear-gradient(175deg, var(--bg-0) 0%, var(--bg-1) 45%, var(--bg-2) 100%) fixed;
   color: var(--ink-body);
@@ -146,6 +154,7 @@ a.cutp.featured:hover { background: var(--gold-hi); filter: drop-shadow(0 0 26px
   padding: 18px 36px;
   min-height: 62px;
 }
+.header-tools { display: flex; align-items: center; gap: 28px; }
 .brand { display: inline-flex; align-items: center; gap: 14px; }
 .logo-mark {
   width: 26px;
@@ -197,6 +206,30 @@ a.cutp.featured:hover { background: var(--gold-hi); filter: drop-shadow(0 0 26px
   text-underline-offset: 4px;
 }
 .nav a.active:hover { color: var(--gold); }
+
+/* EN/ES switch (segmented, square corners like the chips) */
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid rgba(232, 227, 213, 0.2);
+}
+.lang-opt {
+  background: none;
+  border: 0;
+  padding: 5px 10px;
+  font-family: var(--ff-body);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-50);
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease;
+}
+.lang-opt + .lang-opt { border-left: 1px solid rgba(232, 227, 213, 0.2); }
+.lang-opt:hover { color: var(--ink-body); }
+.lang-opt[data-active="true"] {
+  color: var(--gold);
+  background: rgba(200, 170, 110, 0.12);
+}
 
 /* Mobile nav toggle + overlay */
 .nav-toggle {
@@ -878,7 +911,7 @@ li:last-child > .sr-item { border-bottom: 0; }
 .pool-row {
   position: relative;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) 90px 110px 110px;
+  grid-template-columns: 40px minmax(0, 1fr) 110px 110px 110px;
   align-items: center;
   gap: 0 12px;
   padding: 11px 4px 14px;
@@ -953,12 +986,13 @@ li:last-child > .sr-item { border-bottom: 0; }
 
 @media (max-width: 720px) {
   .header-inner { padding: 12px 20px; min-height: 56px; }
+  .header-tools { gap: 12px; }
   .nav { display: none; }
   .nav-toggle { display: flex; }
   .podium { flex-wrap: wrap; padding-top: 20px; }
   .podium-card { width: calc(50% - 10px); margin-top: 0; }
   .podium-card.p1 { width: 100%; order: -1; }
-  .pool-row { grid-template-columns: 40px minmax(0, 1fr) 90px; }
+  .pool-row { grid-template-columns: 40px minmax(0, 1fr) 110px; }
   .pool-row .pool-wl, .pool-row .pool-kda { display: none; }
   .container { padding: 0 18px; }
 }

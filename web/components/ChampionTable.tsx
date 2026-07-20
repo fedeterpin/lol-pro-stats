@@ -3,11 +3,14 @@
 import { useMemo, useState } from "react";
 import type { ChampionStatRow } from "@/lib/db";
 import { championSquare } from "@/lib/champion";
+import { formatValue } from "@/lib/stats";
+import { useI18n } from "@/lib/i18n";
 
 type SortKey = "games" | "win_rate" | "kda";
 const MIN_OPTIONS = [1, 20, 50, 100];
 
 export default function ChampionTable({ champions }: { champions: ChampionStatRow[] }) {
+  const { t, locale } = useI18n();
   const [sort, setSort] = useState<SortKey>("games");
   const [minGames, setMinGames] = useState(20);
 
@@ -34,7 +37,7 @@ export default function ChampionTable({ champions }: { champions: ChampionStatRo
   return (
     <>
       <div className="controls">
-        <span className="ctrl-label">Min. games</span>
+        <span className="ctrl-label">{t("champions.minGames")}</span>
         <div className="chips">
           {MIN_OPTIONS.map((m) => (
             <button
@@ -50,15 +53,15 @@ export default function ChampionTable({ champions }: { champions: ChampionStatRo
       </div>
 
       {rows.length === 0 ? (
-        <p className="empty">No champions above {minGames} games yet.</p>
+        <p className="empty">{t("champions.empty", { n: minGames })}</p>
       ) : (
         <div className="tbl tbl-champs">
           <div className="tbl-head">
-            <span className="th-lab">Champion</span>
-            {header("games", "Games")}
-            {header("win_rate", "Win %")}
-            {header("kda", "KDA", " col-kda")}
-            <span className="th-lab th-num col-players">Players</span>
+            <span className="th-lab">{t("champions.champion")}</span>
+            {header("games", t("common.games"))}
+            {header("win_rate", t("common.winRate"))}
+            {header("kda", t("common.kda"), " col-kda")}
+            <span className="th-lab th-num col-players">{t("champions.players")}</span>
           </div>
           {rows.map((c, i) => (
             <div className={`tbl-row${i === 0 ? " first" : ""}`} key={c.champion}>
@@ -72,9 +75,11 @@ export default function ChampionTable({ champions }: { champions: ChampionStatRo
               </span>
               <span className="cell-games cell-num">{c.games}</span>
               <span className="cell-score cell-num">
-                {(c.win_rate * 100).toFixed(1)}%
+                {formatValue("percent", c.win_rate, locale)}
               </span>
-              <span className="cell-num col-kda">{c.kda.toFixed(2)}</span>
+              <span className="cell-num col-kda">
+                {formatValue("ratio", c.kda, locale)}
+              </span>
               <span className="cell-games cell-num col-players">{c.n_players}</span>
             </div>
           ))}

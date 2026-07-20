@@ -29,3 +29,6 @@ web/.wrangler/
 # OS / editor
 .DS_Store
 *.swp
+
+# Claude Code local state (settings, worktrees)
+.claude/

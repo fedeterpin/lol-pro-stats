@@ -30,7 +30,9 @@ MIGRATIONS: list[tuple[str, str, str]] = [
     ("player_career_stats", "gold15", "REAL"),
     ("player_career_stats", "cs_per_min", "REAL"),
     ("player_career_stats", "dpm", "REAL"),
+    ("player_career_stats", "pentakills", "INTEGER"),
     ("player_index", "source", "TEXT"),
+    ("oe_resolved_games", "is_duplicate", "INTEGER"),
 ]
 
 

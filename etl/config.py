@@ -118,6 +118,13 @@ def classify_tier(league, region, is_playoffs, is_qualifier=None, tournament_lev
 # tier   — 'major' for the four historically-major regions, else 'regional'.
 OE_SCOPE_REGIONAL = "regional"
 OE_SCOPE_INTL_SECONDARY = "intl_secondary"
+# OE's own copy of the premier internationals. Leaguepedia is authoritative for
+# every one of these games, so they are all flagged is_duplicate and contribute
+# NOTHING to the regional scopes. They are listed only so OE-exclusive stats can
+# count a full career: pentakills exist in no Leaguepedia table, and leaving these
+# games out would rank Peyz (7 regional + 2 at internationals) below Ruler instead
+# of tied with him.
+OE_SCOPE_INTL_PREMIER = "intl_premier_oe"
 
 # league code -> (scope, region key, region label, tier)
 OE_LEAGUES: dict[str, tuple[str, str, str, str]] = {
@@ -161,6 +168,11 @@ OE_LEAGUES: dict[str, tuple[str, str, str, str]] = {
     "EWC":    (OE_SCOPE_INTL_SECONDARY, "international", "International", "intl"),  # Esports World Cup, 2024-
     "IEM":    (OE_SCOPE_INTL_SECONDARY, "international", "International", "intl"),  # Intel Extreme Masters, 2015-2017
     "IWCI":   (OE_SCOPE_INTL_SECONDARY, "international", "International", "intl"),  # Wildcard Invitational, 2016
+    # --- Premier internationals: Leaguepedia's, seen from OE's side -------
+    # Never aggregated (all duplicates); see OE_SCOPE_INTL_PREMIER.
+    "WLDs":   (OE_SCOPE_INTL_PREMIER, "premier", "Premier (Leaguepedia's)", "intl"),
+    "MSI":    (OE_SCOPE_INTL_PREMIER, "premier", "Premier (Leaguepedia's)", "intl"),
+    "FST":    (OE_SCOPE_INTL_PREMIER, "premier", "Premier (Leaguepedia's)", "intl"),
 }
 
 # Minimum 'complete' games for a player to enter an economy leaderboard

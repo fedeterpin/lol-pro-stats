@@ -117,7 +117,8 @@ def _oe_career_query(where_extra: str) -> str:
             AVG(goldat15)                   AS gold15,
             SUM(COALESCE(total_cs, 0))            AS cs,
             SUM(COALESCE(damagetochampions, 0))   AS damage,
-            SUM(COALESCE(gamelength, 0))          AS seconds
+            SUM(COALESCE(gamelength, 0))          AS seconds,
+            SUM(COALESCE(pentakills, 0))          AS pentakills
         FROM oe_resolved_games
         WHERE {where_extra}
         GROUP BY player_id
@@ -125,15 +126,21 @@ def _oe_career_query(where_extra: str) -> str:
 
 
 def _oe_scopes(conn: sqlite3.Connection) -> list[tuple[str, str]]:
-    """(scope name, WHERE clause) for every OE scope: the combined regional one,
-    one per region, and the secondary internationals."""
+    """(scope name, WHERE clause) for every OE scope: the combined regional one, one
+    per region, and the secondary internationals.
+
+    Every clause carries is_duplicate = 0. The premier internationals OE also ships
+    are entirely duplicates of Leaguepedia's, so they get no scope of their own —
+    they exist in oe_resolved_games only for pentakills (see compute_pentakills).
+    """
+    dedup = "is_duplicate = 0 AND "
     scopes = [
-        (config.OE_SCOPE_REGIONAL, "league_scope = 'regional'"),
-        (config.OE_SCOPE_INTL_SECONDARY, "league_scope = 'intl_secondary'"),
+        (config.OE_SCOPE_REGIONAL, dedup + "league_scope = 'regional'"),
+        (config.OE_SCOPE_INTL_SECONDARY, dedup + "league_scope = 'intl_secondary'"),
     ]
     regions = conn.execute(
         "SELECT DISTINCT region FROM oe_leagues WHERE scope = 'regional' ORDER BY region")
-    scopes += [(f"region:{r[0]}", f"league_scope = 'regional' AND region = '{r[0]}'")
+    scopes += [(f"region:{r[0]}", dedup + f"league_scope = 'regional' AND region = '{r[0]}'")
                for r in regions]
     return scopes
 
@@ -160,12 +167,14 @@ def compute_oe_career_stats(conn: sqlite3.Connection) -> None:
                 round(r["gold15"], 1) if r["gold15"] is not None else None,
                 round((r["cs"] or 0) / minutes, 2) if minutes else None,
                 round((r["damage"] or 0) / minutes, 1) if minutes else None,
+                r["pentakills"] or 0,
             ))
         conn.executemany(
             """INSERT OR REPLACE INTO player_career_stats
                (player_id, scope, display_id, games, wins, losses, kills, deaths,
-                assists, kda, win_rate, economy_games, gd15, gold15, cs_per_min, dpm)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
+                assists, kda, win_rate, economy_games, gd15, gold15, cs_per_min, dpm,
+                pentakills)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", payload)
     # display_id is filled in once the index knows each player's canonical handle.
     conn.execute("""
         UPDATE player_career_stats SET display_id = COALESCE(
@@ -207,7 +216,8 @@ def compute_player_champions(conn: sqlite3.Connection) -> None:
                    ROUND((SUM(COALESCE(kills, 0)) + SUM(COALESCE(assists, 0)))
                          / CAST(MAX(SUM(COALESCE(deaths, 0)), 1) AS REAL), 4)
             FROM oe_resolved_games
-            WHERE is_leaguepedia = 0 AND champion IS NOT NULL AND champion <> ''
+            WHERE is_duplicate = 0 AND is_leaguepedia = 0
+              AND champion IS NOT NULL AND champion <> ''
             GROUP BY player_id, champion""")
     conn.commit()
 
@@ -237,7 +247,8 @@ def compute_player_teams(conn: sqlite3.Connection) -> None:
             SELECT player_id, teamname, team_logo(teamname),
                    CAST(MIN(year) AS TEXT), CAST(MAX(year) AS TEXT), COUNT(*)
             FROM oe_resolved_games
-            WHERE is_leaguepedia = 0 AND teamname IS NOT NULL AND teamname <> ''
+            WHERE is_duplicate = 0 AND is_leaguepedia = 0
+              AND teamname IS NOT NULL AND teamname <> ''
             GROUP BY player_id, teamname""")
     conn.commit()
 
@@ -349,10 +360,12 @@ def compute_player_index(conn: sqlite3.Connection) -> None:
     # correlated subquery per player over 370k rows. Ordering ascending means the
     # last write per player wins: most-played position, most recent team.
     oe_position = {r[0]: r[1] for r in conn.execute(
-        "SELECT player_id, position FROM oe_resolved_games WHERE position <> '' "
+        "SELECT player_id, position FROM oe_resolved_games "
+        "WHERE is_duplicate = 0 AND position <> '' "
         "GROUP BY player_id, position ORDER BY COUNT(*)")}
     oe_team = {r[0]: r[1] for r in conn.execute(
-        "SELECT player_id, teamname FROM oe_resolved_games WHERE teamname <> '' "
+        "SELECT player_id, teamname FROM oe_resolved_games "
+        "WHERE is_duplicate = 0 AND teamname <> '' "
         "GROUP BY player_id, teamname ORDER BY MAX(year)")}
 
     used: set[str] = set()
@@ -468,6 +481,7 @@ OE_STATS = [
     ("gold15",       "gold15",     None,                "economy_games"),
     ("cs_per_min",   "cs_per_min", "regional_kda",      "games"),
     ("dpm",          "dpm",        "regional_kda",      "games"),
+    ("pentakills",   "pentakills", None,                "games"),
 ]
 
 
@@ -485,6 +499,51 @@ def compute_oe_leaderboards(conn: sqlite3.Connection, top_n: int = 200) -> None:
             _store_leaderboard(conn, stat, scope,
                                [(r["player_id"], r["display_id"], r["value"], r["sample"])
                                 for r in rows])
+
+
+def clear_oe_gold(conn: sqlite3.Connection) -> None:
+    """Drop everything derived from Oracle's Elixir.
+
+    Runs when the OE silver is absent, so a DB that once had it does not keep serving
+    stale rows — a leaderboard is only ever rewritten per (stat, scope), so without
+    this a 'Most pentakills' record survives with nothing behind it.
+    """
+    oe_scope = "(scope IN ('regional', 'intl_secondary') OR scope LIKE 'region:%')"
+    conn.execute(f"DELETE FROM player_career_stats WHERE {oe_scope}")
+    conn.execute(f"DELETE FROM leaderboards WHERE {oe_scope} OR stat = 'pentakills'")
+    conn.execute("DELETE FROM records WHERE record_key = 'most_pentakills'")
+    conn.commit()
+
+
+def compute_pentakills(conn: sqlite3.Connection, top_n: int = 200) -> None:
+    """Career pentakills — the ONE stat that deliberately counts duplicate games.
+
+    Everything else filters is_duplicate = 0 because Leaguepedia is authoritative for
+    those games and would otherwise be counted twice. Pentakills have no Leaguepedia
+    equivalent at all, so there is nothing to double-count and dropping those games
+    just loses pentakills: 31 of them were scored at Worlds and MSI, enough to move
+    Peyz from 7 to 9 and into a tie with Ruler at the top.
+
+    `games` reports the sample the count could come from — games whose pentakills
+    column is populated at all. That is well short of a career for LPL players, whose
+    games carry no multikill data from 2022 on.
+    """
+    rows = conn.execute("""
+        SELECT g.player_id,
+               COALESCE(
+                   (SELECT P.ID FROM players P WHERE P.OverviewPage = g.player_id),
+                   (SELECT pl.playername FROM oe_player_link pl WHERE pl.playerid = g.player_id),
+                   g.player_id) AS display_id,
+               SUM(COALESCE(g.pentakills, 0)) AS pentas,
+               SUM(g.pentakills IS NOT NULL)  AS sample
+        FROM oe_resolved_games g
+        GROUP BY g.player_id
+        HAVING pentas > 0
+        ORDER BY pentas DESC, sample ASC
+        LIMIT ?""", (top_n,)).fetchall()
+    _store_leaderboard(conn, "pentakills", "all",
+                       [(r["player_id"], r["display_id"], r["pentas"], r["sample"])
+                        for r in rows])
 
 
 def _titles(conn, league: str | None, top_n: int) -> list[tuple]:
@@ -539,6 +598,14 @@ RECORD_LABELS = {
     "career_kda_intl": "Best KDA at internationals",
     "career_kda": "Best career KDA",
     "win_rate": "Best career win rate",
+    "pentakills": "Most pentakills",
+}
+
+# Records whose coverage is narrower than the label suggests. Surfaced in the
+# record's context JSON so the site can say so instead of implying completeness.
+RECORD_NOTES = {
+    "pentakills": "Oracle's Elixir only. Games marked 'partial' carry no multikill "
+                  "data, so LPL games from 2022 on are not counted.",
 }
 
 
@@ -552,6 +619,8 @@ def compute_records(conn: sqlite3.Connection) -> None:
         if not row:
             continue
         ctx = {"games": row["games"], "threshold": config.THRESHOLDS.get(stat)}
+        if stat in RECORD_NOTES:
+            ctx["note"] = RECORD_NOTES[stat]
         payload.append((f"most_{stat}", label, row["player_id"], row["display_id"],
                         row["value"], json.dumps(ctx, ensure_ascii=False)))
     conn.executemany(
@@ -567,6 +636,8 @@ def run_all(conn: sqlite3.Connection) -> None:
     has_oe = _has_oe(conn)
     if has_oe:
         compute_oe_career_stats(conn)
+    else:
+        clear_oe_gold(conn)
     compute_player_titles(conn)
     compute_player_teams(conn)
     compute_player_champions(conn)
@@ -574,6 +645,7 @@ def run_all(conn: sqlite3.Connection) -> None:
     compute_leaderboards(conn)
     if has_oe:
         compute_oe_leaderboards(conn)
+        compute_pentakills(conn)
     compute_player_index(conn)
     compute_score_leaderboard(conn)
     compute_records(conn)

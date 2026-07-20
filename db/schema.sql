@@ -170,6 +170,10 @@ CREATE TABLE IF NOT EXISTS player_career_stats (
     gold15      REAL,            -- avg gold at 15 min
     cs_per_min  REAL,
     dpm         REAL,            -- damage to champions per minute
+    -- Oracle's Elixir only, and absent from 'partial' games just like the timings,
+    -- so the LPL contributes none from 2022 on. Scoped totals here exclude games
+    -- Leaguepedia also has; the career record does not (see compute_pentakills).
+    pentakills  INTEGER,
     PRIMARY KEY (player_id, scope)
 );
 
@@ -421,7 +425,12 @@ CREATE TABLE IF NOT EXISTS oe_duplicate_games (
 CREATE TABLE IF NOT EXISTS oe_resolved_games (
     player_id         TEXT NOT NULL,  -- Leaguepedia Link, or the OE playerid when unmapped
     is_leaguepedia    INTEGER,        -- 1 when the crosswalk resolved a Link
-    league_scope      TEXT,           -- 'regional' | 'intl_secondary'
+    -- 1 when Leaguepedia already has this game. Leaguepedia is authoritative for it,
+    -- so ANY consumer counting games, wins or KDA must filter is_duplicate = 0 or it
+    -- double-counts. The rows are kept because OE-exclusive columns (pentakills) have
+    -- no Leaguepedia equivalent and would otherwise be lost for those games.
+    is_duplicate      INTEGER,
+    league_scope      TEXT,           -- 'regional' | 'intl_secondary' | 'intl_premier_oe'
     region            TEXT,
     region_label      TEXT,
     league            TEXT,

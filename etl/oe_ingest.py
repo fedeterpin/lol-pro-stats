@@ -331,19 +331,24 @@ def build_crosswalk(conn) -> None:
 
 
 def build_resolved_games(conn) -> None:
-    """Materialize what the gold layer aggregates: allowlisted, deduped, and keyed by
-    a canonical player id. Depends on the allowlist, the dedup table and the crosswalk,
-    so it runs last."""
+    """Materialize every allowlisted OE player-game, keyed by a canonical player id
+    and flagged with whether Leaguepedia already has it. Depends on the allowlist, the
+    dedup table and the crosswalk, so it runs last.
+
+    Duplicates are kept rather than dropped so OE-exclusive columns survive for those
+    games — consumers filter is_duplicate = 0.
+    """
     conn.execute("DELETE FROM oe_resolved_games")
     conn.execute("""
         INSERT INTO oe_resolved_games (
-            player_id, is_leaguepedia, league_scope, region, region_label, league, year,
-            position, teamname, champion, datacompleteness, result, kills, deaths, assists,
-            pentakills, golddiffat15, goldat15, total_cs, damagetochampions, gamelength,
-            gameid, gameid_norm)
+            player_id, is_leaguepedia, is_duplicate, league_scope, region, region_label,
+            league, year, position, teamname, champion, datacompleteness, result,
+            kills, deaths, assists, pentakills, golddiffat15, goldat15, total_cs,
+            damagetochampions, gamelength, gameid, gameid_norm)
         SELECT
             COALESCE(NULLIF(pl.link, ''), g.playerid),
             CASE WHEN pl.link IS NOT NULL AND pl.link <> '' THEN 1 ELSE 0 END,
+            CASE WHEN d.gameid_norm IS NOT NULL THEN 1 ELSE 0 END,
             lg.scope, lg.region, lg.region_label, g.league, g.year,
             g.position, g.teamname, g.champion, g.datacompleteness, g.result,
             g.kills, g.deaths, g.assists, g.pentakills,
@@ -352,12 +357,14 @@ def build_resolved_games(conn) -> None:
         FROM oe_player_games g
         JOIN oe_leagues lg ON lg.league = g.league
         LEFT JOIN oe_player_link pl ON pl.playerid = g.playerid
-        WHERE g.playerid IS NOT NULL AND g.playerid <> ''
-          AND g.gameid_norm NOT IN (SELECT gameid_norm FROM oe_duplicate_games)""")
+        LEFT JOIN oe_duplicate_games d ON d.gameid_norm = g.gameid_norm
+        WHERE g.playerid IS NOT NULL AND g.playerid <> ''""")
     conn.commit()
-    n, players = conn.execute(
-        "SELECT COUNT(*), COUNT(DISTINCT player_id) FROM oe_resolved_games").fetchone()
-    print(f"  resolved: {n:,} player-games ready for the gold layer | {players:,} players")
+    n, players, dup = conn.execute(
+        "SELECT COUNT(*), COUNT(DISTINCT player_id), SUM(is_duplicate) "
+        "FROM oe_resolved_games").fetchone()
+    print(f"  resolved: {n:,} player-games | {players:,} players "
+          f"| {dup:,} rows flagged as already in Leaguepedia")
 
 
 def summary(conn) -> None:
@@ -386,23 +393,24 @@ def summary(conn) -> None:
         "  JOIN oe_player_games g ON g.playerid = pl.playerid"
         "  JOIN oe_leagues l ON l.league = g.league"
         "  WHERE pl.link IS NULL AND pl.playername IS NOT NULL GROUP BY pl.playerid)"
-        " WHERE LOWER(n) IN (SELECT LOWER(display_id) FROM player_index)").fetchone()
+        " WHERE LOWER(n) IN (SELECT LOWER(display_id) FROM player_index  WHERE source = 'leaguepedia')").fetchone()
     print(f"  OE-only handles colliding with a LP player: {dupes} ({dupe_games:,} games) "
           f"— unresolved identities or genuine namesakes")
 
     print("\n  allowlisted coverage (what the gold layer will aggregate):")
     print(f"    {'region':<16} {'games':>7} {'players':>8} {'complete':>9}  leagues")
     for region_label, n_games, n_players, pct, leagues in cur.execute(
-        "SELECT l.region_label, COUNT(DISTINCT g.gameid), COUNT(DISTINCT g.playerid), "
+        "SELECT l.region_label, COUNT(DISTINCT g.gameid), COUNT(DISTINCT g.player_id), "
         "       ROUND(100.0 * SUM(g.datacompleteness = 'complete') / COUNT(*)), "
         "       GROUP_CONCAT(DISTINCT g.league) "
-        "FROM oe_player_games g JOIN oe_leagues l ON l.league = g.league "
+        "FROM oe_resolved_games g JOIN oe_leagues l ON l.league = g.league "
+        "WHERE g.is_duplicate = 0 AND l.scope <> 'intl_premier_oe' "
         "GROUP BY l.scope, l.region ORDER BY l.scope, COUNT(DISTINCT g.gameid) DESC"
     ):
         print(f"    {region_label:<16} {n_games:>7,} {n_players:>8,} {pct:>8.0f}%  {leagues}")
     tot_games, tot_players = cur.execute(
-        "SELECT COUNT(DISTINCT g.gameid), COUNT(DISTINCT g.playerid) FROM oe_player_games g "
-        "JOIN oe_leagues l ON l.league = g.league").fetchone()
+        "SELECT COUNT(DISTINCT gameid), COUNT(DISTINCT player_id) "
+        "FROM oe_resolved_games WHERE is_duplicate = 0 AND league_scope <> 'intl_premier_oe'").fetchone()
     print(f"    {'TOTAL':<16} {tot_games:>7,} {tot_players:>8,}   "
           f"({100 * tot_games // ngames}% of the {ngames:,} OE games)")
     print("\n  spot-check (known players -> mapped Link, support):")

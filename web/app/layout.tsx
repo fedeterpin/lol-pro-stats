@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Space_Grotesk, Inter } from "next/font/google";
+import { LocaleProvider, T } from "@/lib/i18n";
+import { DEFAULT_LOCALE } from "@/lib/i18n/messages";
+import LocaleSwitch from "@/components/LocaleSwitch";
 import "./globals.css";
 
 // Display: Space Grotesk — modern, geometric, with character in the large numbers.
@@ -28,35 +31,52 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // `lang` is the build-time locale; LocaleProvider rewrites it in the browser
+  // once the visitor's language is known.
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+    <html
+      lang={DEFAULT_LOCALE}
+      className={`${display.variable} ${body.variable}`}
+    >
       <body>
-        <div className="atmosphere" aria-hidden="true" />
-        <header className="site-header">
-          <div className="inner">
-            <Link href="/" className="brand">
-              <span className="brand-mark" aria-hidden="true" />
-              <span className="brand-name">
-                LoL <em>Pro Stats</em>
-              </span>
-            </Link>
-            <nav className="nav">
-              <Link href="/">Search</Link>
-              <Link href="/leaderboards">Leaderboards</Link>
-              <Link href="/players">Players</Link>
-              <Link href="/champions">Champions</Link>
-              <Link href="/records">Records</Link>
-            </nav>
-          </div>
-        </header>
-        <main className="container">{children}</main>
-        <footer className="site-footer">
-          <div className="container">
-            <span className="hex-node" aria-hidden="true" />
-            Data from Leaguepedia (CC BY-SA 4.0) · Oracle&apos;s Elixir (Tim
-            Sevenhuysen) · A fan project, not affiliated with Riot Games.
-          </div>
-        </footer>
+        <LocaleProvider>
+          <div className="atmosphere" aria-hidden="true" />
+          <header className="site-header">
+            <div className="inner">
+              <Link href="/" className="brand">
+                <span className="brand-mark" aria-hidden="true" />
+                <span className="brand-name">
+                  LoL <em>Pro Stats</em>
+                </span>
+              </Link>
+              <nav className="nav">
+                <Link href="/">
+                  <T k="nav.search" />
+                </Link>
+                <Link href="/leaderboards">
+                  <T k="nav.leaderboards" />
+                </Link>
+                <Link href="/players">
+                  <T k="nav.players" />
+                </Link>
+                <Link href="/champions">
+                  <T k="nav.champions" />
+                </Link>
+                <Link href="/records">
+                  <T k="nav.records" />
+                </Link>
+              </nav>
+              <LocaleSwitch />
+            </div>
+          </header>
+          <main className="container">{children}</main>
+          <footer className="site-footer">
+            <div className="container">
+              <span className="hex-node" aria-hidden="true" />
+              <T k="footer.credits" />
+            </div>
+          </footer>
+        </LocaleProvider>
       </body>
     </html>
   );

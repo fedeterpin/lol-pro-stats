@@ -373,7 +373,8 @@ CREATE TABLE IF NOT EXISTS oe_player_link (
     link        TEXT,              -- Leaguepedia Link (== Players.OverviewPage); NULL if OE-only
     playername  TEXT,              -- a representative OE handle
     n_games     INTEGER,           -- overlapping games backing the mapping
-    n_conflicts INTEGER            -- overlapping games that voted for another Link
+    n_conflicts INTEGER,           -- overlapping games that voted for another Link
+    method      TEXT               -- 'gameid' (strong) | 'name' (handle + shared year/team) | NULL
 );
 CREATE INDEX IF NOT EXISTS idx_oelink_link ON oe_player_link(link);
 

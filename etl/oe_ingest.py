@@ -84,6 +84,15 @@ def norm_id(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", s or "").upper()
 
 
+# Leaguepedia suffixes a regional tag onto teams that share a name across regions
+# ('Ninjas in Pyjamas.CN'); OE does not. Strip it before comparing team names.
+_TEAM_SUFFIX = re.compile(r"\.(cn|kr|na|eu|br|la[ns]?|vn|jp|tr|oce|sea|tw)$")
+
+
+def norm_team(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", _TEAM_SUFFIX.sub("", (s or "").strip().lower()))
+
+
 def _coerce(col: str, raw):
     if raw is None:
         return None
@@ -171,6 +180,77 @@ def sync_leagues(conn) -> None:
           + (f" | WARNING: not found in the data: {', '.join(missing)}" if missing else ""))
 
 
+def recover_by_name(conn, mapped: dict[str, str], names: dict[str, str]) -> dict[str, str]:
+    """Second pass: map the OE players the game-id vote could not reach.
+
+    The game-id vote only works where Leaguepedia HAS a RiotPlatformGameId, and it
+    often does not: none before 2014, and 91 of 250 games in 2024. That leaves ~25%
+    of Leaguepedia players unmapped even though OE has hundreds of regional games
+    for them, which would split one person into two entries in the gold layer.
+
+    So: match the OE handle against Leaguepedia handles, then REQUIRE a shared
+    (year, normalized team) to confirm it. The handle alone is not enough — three
+    different players are called 'Fury' (Gambit 2014, Samsung/Longzhu 2015-19, and
+    a Vietnamese wildcard in 2015), and two of them overlap in the same year. Being
+    on the same roster in the same season is what makes it the same person.
+
+    Anything ambiguous in either direction is rejected: one OE id matching several
+    Links, or several OE ids matching one Link. Links already resolved by game id
+    are left alone — that evidence is stronger.
+    """
+    cur = conn.cursor()
+
+    # Leaguepedia handles -> Links. ScoreboardPlayers.Name is the handle shown in
+    # that game, which PlayerRedirects often lacks (it has 'Cube1' but not 'Cube').
+    lp_names: dict[str, set[str]] = defaultdict(set)
+    for name, link in cur.execute(
+        "SELECT Name, Link FROM scoreboard_players WHERE Name <> '' AND Link <> '' "
+        "UNION SELECT AllName, OverviewPage FROM player_redirects WHERE AllName <> '' "
+        "UNION SELECT ID, OverviewPage FROM players WHERE ID IS NOT NULL AND ID <> ''"
+    ):
+        lp_names[name.strip().lower()].add(link)
+
+    # (year, team) each side was on.
+    lp_yt: dict[str, set[tuple[int, str]]] = defaultdict(set)
+    for link, year, team in cur.execute(
+        "SELECT Link, CAST(substr(DateTime_UTC, 1, 4) AS INTEGER), Team "
+        "FROM scoreboard_players WHERE Link <> '' AND Team <> '' AND DateTime_UTC <> ''"
+    ):
+        lp_yt[link].add((year, norm_team(team)))
+
+    taken = set(mapped.values())
+    candidates: dict[str, set[tuple[int, str]]] = defaultdict(set)
+    for pid, year, team in cur.execute(
+        "SELECT playerid, year, teamname FROM oe_player_games "
+        "WHERE playerid <> '' AND teamname <> '' AND year IS NOT NULL"
+    ):
+        if pid not in mapped:
+            candidates[pid].add((year, norm_team(team)))
+
+    def same_roster(oe_yt: set[tuple[int, str]], link: str) -> bool:
+        # Same team within a year of each other. Leaguepedia only has this player's
+        # INTERNATIONAL games, so its year is whenever they happened to qualify,
+        # which can sit a season away from the regional games OE has (Swift and V
+        # both show up on Qiao Gu Reapers, LP in 2015 and OE from 2016). Two
+        # different players sharing a handle AND an org one year apart does not happen.
+        return any(ot == lt and abs(oy - ly) <= 1
+                   for oy, ot in oe_yt for ly, lt in lp_yt.get(link, ()))
+
+    hits: dict[str, str] = {}
+    for pid, oe_yt in candidates.items():
+        name = (names.get(pid) or "").strip().lower()
+        if not name:
+            continue
+        confirmed = [link for link in lp_names.get(name, ())
+                     if link not in taken and same_roster(oe_yt, link)]
+        if len(confirmed) == 1:               # ambiguous handle -> leave it OE-only
+            hits[pid] = confirmed[0]
+
+    # A Link claimed by more than one OE id is not resolvable either.
+    claims = Counter(hits.values())
+    return {pid: link for pid, link in hits.items() if claims[link] == 1}
+
+
 def build_crosswalk(conn) -> None:
     """OE playerid -> Leaguepedia Link via (norm platform game id, champion)."""
     cur = conn.cursor()
@@ -203,25 +283,32 @@ def build_crosswalk(conn) -> None:
             if link:
                 votes[pid][link] += 1
 
+    # Track A result: the game-id majority vote.
+    by_gameid = {pid: v.most_common(1)[0][0] for pid, v in votes.items()}
+    # Track B: recover what the game ids could not reach (see recover_by_name).
+    by_name = recover_by_name(conn, by_gameid, names)
+
     # Every distinct OE playerid gets a row (link NULL when OE-only).
     all_pids = [r[0] for r in cur.execute(
         "SELECT DISTINCT playerid FROM oe_player_games WHERE playerid IS NOT NULL AND playerid <> ''")]
     rows = []
-    mapped = 0
     for pid in all_pids:
         v = votes.get(pid)
         if v:
             link, n = v.most_common(1)[0]
-            rows.append((pid, link, names.get(pid), n, sum(v.values()) - n))
-            mapped += 1
+            rows.append((pid, link, names.get(pid), n, sum(v.values()) - n, "gameid"))
+        elif pid in by_name:
+            rows.append((pid, by_name[pid], names.get(pid), 0, 0, "name"))
         else:
-            rows.append((pid, None, names.get(pid), 0, 0))
+            rows.append((pid, None, names.get(pid), 0, 0, None))
     conn.execute("DELETE FROM oe_player_link")
     conn.executemany(
-        "INSERT OR REPLACE INTO oe_player_link (playerid, link, playername, n_games, n_conflicts) "
-        "VALUES (?, ?, ?, ?, ?)", rows)
+        "INSERT OR REPLACE INTO oe_player_link "
+        "(playerid, link, playername, n_games, n_conflicts, method) VALUES (?, ?, ?, ?, ?, ?)", rows)
     conn.commit()
+    mapped = len(by_gameid) + len(by_name)
     print(f"  crosswalk: {len(all_pids):,} OE players | {mapped:,} mapped to a Leaguepedia Link "
+          f"({len(by_gameid):,} by game id + {len(by_name):,} recovered by handle+roster) "
           f"| {len(all_pids) - mapped:,} OE-only")
 
 
@@ -241,6 +328,19 @@ def summary(conn) -> None:
     print(f"  games overlapping Leaguepedia (to dedup) : {overlap:,}")
     conf = cur.execute("SELECT COUNT(*) FROM oe_player_link WHERE n_conflicts > 0").fetchone()[0]
     print(f"  crosswalk mappings with conflicts        : {conf}")
+    # Residual risk: an OE-only player sharing a handle with a Leaguepedia player is
+    # either a genuinely different person (there are three unrelated 'Fury's) or an
+    # identity we failed to merge, in which case they show up twice in the gold layer.
+    # Neither case is fixable from the data we have — report it rather than hide it.
+    dupes, dupe_games = cur.execute(
+        "SELECT COUNT(*), COALESCE(SUM(games), 0) FROM ("
+        "  SELECT pl.playername AS n, COUNT(*) AS games FROM oe_player_link pl"
+        "  JOIN oe_player_games g ON g.playerid = pl.playerid"
+        "  JOIN oe_leagues l ON l.league = g.league"
+        "  WHERE pl.link IS NULL AND pl.playername IS NOT NULL GROUP BY pl.playerid)"
+        " WHERE LOWER(n) IN (SELECT LOWER(display_id) FROM player_index)").fetchone()
+    print(f"  OE-only handles colliding with a LP player: {dupes} ({dupe_games:,} games) "
+          f"— unresolved identities or genuine namesakes")
 
     print("\n  allowlisted coverage (what the gold layer will aggregate):")
     print(f"    {'region':<16} {'games':>7} {'players':>8} {'complete':>9}  leagues")
@@ -274,6 +374,11 @@ def main() -> None:
 
     conn = db.connect()
     db.apply_schema(conn)
+    # apply_schema only runs CREATE TABLE IF NOT EXISTS, so a column added to an
+    # existing table needs this. Idempotent.
+    if "method" not in {r[1] for r in conn.execute("PRAGMA table_info(oe_player_link)")}:
+        conn.execute("ALTER TABLE oe_player_link ADD COLUMN method TEXT")
+        conn.commit()
     if not args.no_load:
         print("Loading OE CSVs...")
         load_csvs(conn, years)

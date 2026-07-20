@@ -1,5 +1,6 @@
 import { getLeaderboard, type LeaderboardRow } from "@/lib/db";
 import { STAT_CATALOG, ROLES } from "@/lib/stats";
+import { T } from "@/lib/i18n";
 import LeaderboardExplorer from "@/components/LeaderboardExplorer";
 
 export type Boards = Record<string, Record<string, LeaderboardRow[]>>;
@@ -17,11 +18,14 @@ export default function LeaderboardsPage() {
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">The main stage, ranked</p>
-        <h1>Leaderboards</h1>
+        <p className="eyebrow">
+          <T k="leaderboards.eyebrow" />
+        </p>
+        <h1>
+          <T k="leaderboards.title" />
+        </h1>
         <p className="subtitle">
-          Pick a category, filter by role and sort the table. Every record shows its
-          minimum-games threshold to keep it honest.
+          <T k="leaderboards.subtitle" />
         </p>
       </section>
       <div className="divider">

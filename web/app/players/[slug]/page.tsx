@@ -10,9 +10,12 @@ import {
   getScoreRank,
   listPlayers,
 } from "@/lib/db";
+import ScoreBreakdown from "@/components/ScoreBreakdown";
 import { championSquare } from "@/lib/champion";
 import { roleIcon, countryFlag } from "@/lib/icons";
-import { STAT_BY_KEY, formatValue, scopeLabel } from "@/lib/stats";
+import { STAT_BY_KEY, statLabelKey } from "@/lib/stats";
+import { T, Num, StatValue, ScopeLabel } from "@/lib/i18n";
+import type { MsgKey } from "@/lib/i18n/messages";
 
 export function generateStaticParams() {
   return listPlayers(5000).map((p) => ({ slug: p.slug }));
@@ -38,24 +41,27 @@ export default async function PlayerPage({
       return {};
     }
   })();
-  const BD_PARTS = [
-    { key: "titles", label: "Titles", color: "var(--gold)" },
-    { key: "stage", label: "Stage", color: "var(--teal)" },
-    { key: "longevity", label: "Longevity", color: "#6f86b8" },
-    { key: "performance", label: "Performance", color: "#b6784a" },
-  ];
-  const bdTotal = BD_PARTS.reduce((s, p) => s + (breakdown[p.key] || 0), 0) || 1;
   const held = getPlayerRankings(player.player_id, 10)
     .filter((r) => STAT_BY_KEY[r.stat])
     .sort((a, b) => a.rank - b.rank)
     .slice(0, 8);
 
-  const tiles = [
-    { label: "Games", value: player.games.toLocaleString("en") },
-    { label: "Career KDA", value: player.kda.toFixed(2), accent: true },
-    { label: "Win rate", value: `${(player.win_rate * 100).toFixed(1)}%` },
-    { label: "Intl. titles", value: player.intl_titles },
-    { label: "Worlds titles", value: player.worlds_titles },
+  const tiles: { key: MsgKey; value: React.ReactNode; accent?: boolean }[] = [
+    { key: "player.tile.games", value: <Num value={player.games} /> },
+    {
+      key: "player.tile.careerKda",
+      value: <StatValue kind="ratio" value={player.kda} />,
+      accent: true,
+    },
+    {
+      key: "player.tile.winRate",
+      value: <StatValue kind="percent" value={player.win_rate} />,
+    },
+    { key: "player.tile.intlTitles", value: <Num value={player.intl_titles} /> },
+    {
+      key: "player.tile.worldsTitles",
+      value: <Num value={player.worlds_titles} />,
+    },
   ];
 
   return (
@@ -107,60 +113,55 @@ export default async function PlayerPage({
                 {player.country}
               </span>
             )}
-            {player.is_retired ? <span className="pm-item retired">Retired</span> : null}
+            {player.is_retired ? (
+              <span className="pm-item retired">
+                <T k="player.retired" />
+              </span>
+            ) : null}
           </p>
         </div>
       </header>
 
       <section className="score-panel">
         <div className="score-main">
-          <div className="score-num">{player.score.toLocaleString("en")}</div>
+          <div className="score-num">
+            <Num value={player.score} />
+          </div>
           <div className="score-cap">
-            <div className="score-label">Legacy score</div>
+            <div className="score-label">
+              <T k="player.legacyScore" />
+            </div>
             {scoreRank.rank > 0 && (
               <div className="score-rank">
-                #{scoreRank.rank} of {scoreRank.total.toLocaleString("en")}
+                <T
+                  k="player.rank"
+                  vars={{ rank: scoreRank.rank, total: scoreRank.total }}
+                />
               </div>
             )}
           </div>
         </div>
-        <div className="score-break">
-          <div className="score-bar">
-            {BD_PARTS.map((p) => {
-              const v = breakdown[p.key] || 0;
-              if (v <= 0) return null;
-              return (
-                <span
-                  key={p.key}
-                  style={{ width: `${(v / bdTotal) * 100}%`, background: p.color }}
-                  title={`${p.label}: ${v}`}
-                />
-              );
-            })}
-          </div>
-          <div className="score-legend">
-            {BD_PARTS.map((p) => (
-              <span key={p.key}>
-                <i style={{ background: p.color }} />
-                {p.label} <b>{breakdown[p.key] || 0}</b>
-              </span>
-            ))}
-          </div>
-        </div>
+        <ScoreBreakdown breakdown={breakdown} />
       </section>
 
       <div className="tile-row">
-        {tiles.map((t) => (
-          <div className="tile" key={t.label}>
-            <div className={`tile-val${t.accent ? " accent" : ""}`}>{t.value}</div>
-            <div className="tile-label">{t.label}</div>
+        {tiles.map((tile) => (
+          <div className="tile" key={tile.key}>
+            <div className={`tile-val${tile.accent ? " accent" : ""}`}>
+              {tile.value}
+            </div>
+            <div className="tile-label">
+              <T k={tile.key} />
+            </div>
           </div>
         ))}
       </div>
 
       {held.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Records held</h2>
+          <h2 className="block-title">
+            <T k="player.recordsHeld" />
+          </h2>
           <div className="held-grid">
             {held.map((r) => {
               const def = STAT_BY_KEY[r.stat];
@@ -170,11 +171,16 @@ export default async function PlayerPage({
                     #{r.rank}
                   </span>
                   <span className="held-label">
-                    {def.label}
+                    <T k={statLabelKey(r.stat)} />
                     {r.scope !== "all" && (
-                      <em> · {scopeLabel(r.scope)}</em>
+                      <em>
+                        {" · "}
+                        <ScopeLabel scope={r.scope} />
+                      </em>
                     )}
-                    <b>{formatValue(def.kind, r.value)}</b>
+                    <b>
+                      <StatValue kind={def.kind} value={r.value} />
+                    </b>
                   </span>
                 </div>
               );
@@ -185,7 +191,9 @@ export default async function PlayerPage({
 
       {teams.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Team history</h2>
+          <h2 className="block-title">
+            <T k="player.teamHistory" />
+          </h2>
           <div className="teamhist">
             {teams.map((t) => (
               <div className="th-item" key={t.team}>
@@ -202,7 +210,7 @@ export default async function PlayerPage({
                     {t.first_year === t.last_year
                       ? t.first_year
                       : `${t.first_year}–${t.last_year}`}{" "}
-                    · {t.games} games
+                    · <T k="common.gamesCount" vars={{ n: t.games }} />
                   </span>
                 </div>
               </div>
@@ -213,7 +221,9 @@ export default async function PlayerPage({
 
       {titles.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Trophy case · {titles.length}</h2>
+          <h2 className="block-title">
+            <T k="player.trophyCase" /> · {titles.length}
+          </h2>
           <div className="trophy-grid">
             {titles.map((t) => (
               <div className="trophy" key={t.overview_page}>
@@ -239,7 +249,9 @@ export default async function PlayerPage({
 
       {champs.length > 0 && (
         <section className="block">
-          <h2 className="block-title">Champion pool</h2>
+          <h2 className="block-title">
+            <T k="player.championPool" />
+          </h2>
           <div className="champ-grid">
             {champs.map((c) => (
               <div className="champ" key={c.champion}>
@@ -251,8 +263,13 @@ export default async function PlayerPage({
                 <div className="champ-body">
                   <div className="champ-name">{c.champion}</div>
                   <div className="champ-stat">
-                    {c.games} games · {c.wins}W {c.games - c.wins}L ·{" "}
-                    <b>{c.kda.toFixed(2)}</b> KDA
+                    <T k="common.gamesCount" vars={{ n: c.games }} /> · {c.wins}
+                    <T k="common.winShort" /> {c.games - c.wins}
+                    <T k="common.lossShort" /> ·{" "}
+                    <b>
+                      <StatValue kind="ratio" value={c.kda} />
+                    </b>{" "}
+                    KDA
                   </div>
                 </div>
               </div>

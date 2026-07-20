@@ -11,8 +11,16 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import type { LeaderboardRow } from "@/lib/db";
-import { formatValue, scopeLabel, ROLES, type StatDef } from "@/lib/stats";
+import {
+  formatValue,
+  statLabelKey,
+  statShortKey,
+  statHelpKey,
+  ROLES,
+  type StatDef,
+} from "@/lib/stats";
 import { roleIcon } from "@/lib/icons";
+import { useI18n, ScopeLabel } from "@/lib/i18n";
 
 const col = createColumnHelper<LeaderboardRow>();
 
@@ -23,6 +31,7 @@ export default function LeaderboardExplorer({
   boards: Record<string, Record<string, LeaderboardRow[]>>;
   catalog: StatDef[];
 }) {
+  const { t, locale } = useI18n();
   const [statKey, setStatKey] = useState(catalog[0]?.key ?? "");
   const [scope, setScope] = useState("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "rank", desc: false }]);
@@ -47,7 +56,7 @@ export default function LeaderboardExplorer({
         },
       }),
       col.accessor("display_id", {
-        header: "Player",
+        header: t("common.player"),
         cell: (c) => {
           const slug = c.row.original.slug;
           const name = c.getValue() as string;
@@ -61,15 +70,19 @@ export default function LeaderboardExplorer({
         },
       }),
       col.accessor("value", {
-        header: def?.short ?? "Value",
-        cell: (c) => formatValue(def?.kind ?? "count", c.getValue() as number),
+        header: def ? t(statShortKey(def.key)) : t("common.value"),
+        cell: (c) =>
+          formatValue(def?.kind ?? "count", c.getValue() as number, locale),
       }),
       col.accessor("games", {
-        header: "Games",
-        cell: (c) => (c.getValue() == null ? "—" : (c.getValue() as number)),
+        header: t("common.games"),
+        cell: (c) => {
+          const v = c.getValue() as number | null;
+          return v == null ? "—" : v.toLocaleString(locale);
+        },
       }),
     ],
-    [def],
+    [def, t, locale],
   );
 
   const table = useReactTable({
@@ -93,7 +106,7 @@ export default function LeaderboardExplorer({
             data-active={s.key === statKey}
             onClick={() => setStatKey(s.key)}
           >
-            {s.label}
+            {t(statLabelKey(s.key))}
           </button>
         ))}
       </div>
@@ -115,20 +128,17 @@ export default function LeaderboardExplorer({
                     style={{ backgroundImage: `url(${icon})` }}
                   />
                 )}
-                {scopeLabel(sc)}
+                <ScopeLabel scope={sc} />
               </button>
             );
           })}
         </div>
       )}
 
-      {def?.help && <p className="help">{def.help}</p>}
+      {def && <p className="help">{t(statHelpKey(def.key))}</p>}
 
       {data.length === 0 ? (
-        <p className="empty">
-          Not enough data for this leaderboard yet. The ETL is still loading — try
-          reloading in a little while.
-        </p>
+        <p className="empty">{t("leaderboards.empty")}</p>
       ) : (
         <div className="board-wrap">
           <table className="board">

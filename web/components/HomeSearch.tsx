@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { roleIcon } from "@/lib/icons";
+import { useI18n } from "@/lib/i18n";
 
 // Minimal player shape for the search index (keeps the homepage payload small).
 export interface SearchPlayer {
@@ -19,6 +20,7 @@ export interface SearchPlayer {
 
 export default function HomeSearch({ players }: { players: SearchPlayer[] }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -43,7 +45,7 @@ export default function HomeSearch({ players }: { players: SearchPlayer[] }) {
         <input
           className="hs-input"
           type="search"
-          placeholder="Search a pro player…"
+          placeholder={t("home.search.placeholder")}
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -55,7 +57,7 @@ export default function HomeSearch({ players }: { players: SearchPlayer[] }) {
             if (e.key === "Enter" && results[0]) router.push(`/players/${results[0].slug}`);
             if (e.key === "Escape") setOpen(false);
           }}
-          aria-label="Search a pro player"
+          aria-label={t("home.search.aria")}
           autoComplete="off"
         />
       </div>
@@ -63,7 +65,7 @@ export default function HomeSearch({ players }: { players: SearchPlayer[] }) {
       {open && q.trim() && (
         <ul className="hs-results">
           {results.length === 0 ? (
-            <li className="hs-empty">No players match “{q}”.</li>
+            <li className="hs-empty">{t("common.noMatch", { q })}</li>
           ) : (
             results.map((p) => (
               <li key={p.player_id}>

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getRecords } from "@/lib/db";
-import { STAT_BY_KEY, formatValue, type StatDef } from "@/lib/stats";
+import { STAT_BY_KEY, statLabelKey, type StatDef } from "@/lib/stats";
+import { T, StatValue } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "Hall of Records — LoL Pro Stats",
@@ -15,11 +16,14 @@ export default function RecordsPage() {
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">The all-time record book</p>
-        <h1>Hall of Records</h1>
+        <p className="eyebrow">
+          <T k="records.eyebrow" />
+        </p>
+        <h1>
+          <T k="records.title" />
+        </h1>
         <p className="subtitle">
-          The headline marks of international League of Legends — the very best on the
-          game&apos;s biggest stages.
+          <T k="records.subtitle" />
         </p>
       </section>
       <div className="divider">
@@ -28,8 +32,7 @@ export default function RecordsPage() {
 
       {records.length === 0 ? (
         <p className="empty">
-          No data yet. The ETL is filling the hall of records — reload in a little
-          while.
+          <T k="records.empty" />
         </p>
       ) : (
         <div className="record-grid">
@@ -45,7 +48,9 @@ export default function RecordsPage() {
             }
             return (
               <article className="record-card" key={rec.record_key}>
-                <span className="label">{def?.label ?? rec.label}</span>
+                <span className="label">
+                  {def ? <T k={statLabelKey(statKey)} /> : rec.label}
+                </span>
                 <div className="holder">
                   {rec.slug ? (
                     <Link href={`/players/${rec.slug}`} className="plink">
@@ -55,8 +60,14 @@ export default function RecordsPage() {
                     rec.display_id
                   )}
                 </div>
-                <div className="value">{formatValue(kind, rec.value)}</div>
-                {games != null && <div className="meta">{games} games</div>}
+                <div className="value">
+                  <StatValue kind={kind} value={rec.value} />
+                </div>
+                {games != null && (
+                  <div className="meta">
+                    <T k="common.gamesCount" vars={{ n: games }} />
+                  </div>
+                )}
               </article>
             );
           })}

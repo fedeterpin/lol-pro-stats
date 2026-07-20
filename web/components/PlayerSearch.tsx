@@ -4,8 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { PlayerRow } from "@/lib/db";
 import { roleIcon } from "@/lib/icons";
+import { useI18n } from "@/lib/i18n";
+import { formatValue } from "@/lib/stats";
 
 export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
+  const { t, locale } = useI18n();
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
@@ -25,10 +28,10 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
       <input
         className="search"
         type="search"
-        placeholder="Search a player, team or role…"
+        placeholder={t("players.search.placeholder")}
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        aria-label="Search players"
+        aria-label={t("players.search.aria")}
       />
       <div className="player-grid">
         {filtered.map((p) => (
@@ -47,7 +50,10 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
                 <div className="pcard-top">
                   <span className="pcard-name">{p.display_id}</span>
                   {p.intl_titles > 0 && (
-                    <span className="pcard-titles" title="International titles">
+                    <span
+                      className="pcard-titles"
+                      title={t("players.card.intlTitles")}
+                    >
                       ★ {p.intl_titles}
                     </span>
                   )}
@@ -64,15 +70,20 @@ export default function PlayerSearch({ players }: { players: PlayerRow[] }) {
               </div>
             </div>
             <div className="pcard-stats">
-              <span className="pcard-score" title="Legacy score">
-                {p.score.toLocaleString("en")}
+              <span className="pcard-score" title={t("players.card.legacyScore")}>
+                {p.score.toLocaleString(locale)}
               </span>
-              <span>{p.games} games · {p.kda.toFixed(2)} KDA</span>
+              <span>
+                {p.games.toLocaleString(locale)} {t("common.gamesLower")} ·{" "}
+                {formatValue("ratio", p.kda, locale)} KDA
+              </span>
             </div>
           </Link>
         ))}
       </div>
-      {filtered.length === 0 && <p className="empty">No players match “{q}”.</p>}
+      {filtered.length === 0 && (
+        <p className="empty">{t("common.noMatch", { q })}</p>
+      )}
     </>
   );
 }

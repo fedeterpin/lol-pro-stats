@@ -5,6 +5,7 @@ import { LocaleProvider, T } from "@/lib/i18n";
 import { DEFAULT_LOCALE } from "@/lib/i18n/messages";
 import LocaleSwitch from "@/components/LocaleSwitch";
 import SiteNav from "@/components/SiteNav";
+import ScrollReset from "@/components/ScrollReset";
 import "./globals.css";
 
 // Display: Cinzel — ceremony only (page titles, hero names, rank numerals).
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body>
         <LocaleProvider>
+          <ScrollReset />
           <header className="site-header">
             <div className="header-inner">
               <Link href="/" className="brand">
@@ -68,12 +70,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </div>
           </header>
-          <main className="container">{children}</main>
-          <footer className="site-footer">
-            <div className="container">
-              <T k="footer.credits" />
-            </div>
-          </footer>
+          <div className="app-scroll">
+            <main className="container">{children}</main>
+            <footer className="site-footer">
+              <div className="container">
+                <T k="footer.credits" />
+              </div>
+            </footer>
+          </div>
         </LocaleProvider>
       </body>
     </html>

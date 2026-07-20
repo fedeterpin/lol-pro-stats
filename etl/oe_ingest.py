@@ -152,6 +152,25 @@ def load_csvs(conn, years: set[str] | None) -> None:
         print(f"  {fname}: {np:>7,} player-rows | {nt:>6,} team-rows | {skipped} skipped")
 
 
+def sync_leagues(conn) -> None:
+    """Materialize config.OE_LEAGUES into the oe_leagues dimension table.
+
+    Warns about allowlisted codes absent from the loaded data — that is almost
+    always a typo in the allowlist, since OE league codes are opaque strings.
+    """
+    rows = config.oe_league_rows()
+    conn.execute("DELETE FROM oe_leagues")
+    conn.executemany(
+        "INSERT INTO oe_leagues (league, scope, region, region_label, tier) VALUES (?, ?, ?, ?, ?)",
+        rows)
+    conn.commit()
+
+    present = {r[0] for r in conn.execute("SELECT DISTINCT league FROM oe_player_games")}
+    missing = sorted(lg for lg, *_ in rows if lg not in present)
+    print(f"  allowlist: {len(rows)} leagues"
+          + (f" | WARNING: not found in the data: {', '.join(missing)}" if missing else ""))
+
+
 def build_crosswalk(conn) -> None:
     """OE playerid -> Leaguepedia Link via (norm platform game id, champion)."""
     cur = conn.cursor()
@@ -222,6 +241,22 @@ def summary(conn) -> None:
     print(f"  games overlapping Leaguepedia (to dedup) : {overlap:,}")
     conf = cur.execute("SELECT COUNT(*) FROM oe_player_link WHERE n_conflicts > 0").fetchone()[0]
     print(f"  crosswalk mappings with conflicts        : {conf}")
+
+    print("\n  allowlisted coverage (what the gold layer will aggregate):")
+    print(f"    {'region':<16} {'games':>7} {'players':>8} {'complete':>9}  leagues")
+    for region_label, n_games, n_players, pct, leagues in cur.execute(
+        "SELECT l.region_label, COUNT(DISTINCT g.gameid), COUNT(DISTINCT g.playerid), "
+        "       ROUND(100.0 * SUM(g.datacompleteness = 'complete') / COUNT(*)), "
+        "       GROUP_CONCAT(DISTINCT g.league) "
+        "FROM oe_player_games g JOIN oe_leagues l ON l.league = g.league "
+        "GROUP BY l.scope, l.region ORDER BY l.scope, COUNT(DISTINCT g.gameid) DESC"
+    ):
+        print(f"    {region_label:<16} {n_games:>7,} {n_players:>8,} {pct:>8.0f}%  {leagues}")
+    tot_games, tot_players = cur.execute(
+        "SELECT COUNT(DISTINCT g.gameid), COUNT(DISTINCT g.playerid) FROM oe_player_games g "
+        "JOIN oe_leagues l ON l.league = g.league").fetchone()
+    print(f"    {'TOTAL':<16} {tot_games:>7,} {tot_players:>8,}   "
+          f"({100 * tot_games // ngames}% of the {ngames:,} OE games)")
     print("\n  spot-check (known players -> mapped Link, support):")
     for pid, link, pname, ng, nc in cur.execute(
         "SELECT playerid, link, playername, n_games, n_conflicts FROM oe_player_link "
@@ -242,6 +277,8 @@ def main() -> None:
     if not args.no_load:
         print("Loading OE CSVs...")
         load_csvs(conn, years)
+    print("Syncing the league allowlist...")
+    sync_leagues(conn)
     print("Building identity crosswalk...")
     build_crosswalk(conn)
     summary(conn)

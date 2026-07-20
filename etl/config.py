@@ -102,6 +102,81 @@ def classify_tier(league, region, is_playoffs, is_qualifier=None, tournament_lev
     return "regional_regular"
 
 
+# --- Oracle's Elixir: league allowlist -----------------------------------
+# OE ships 122 league codes / ~99k games, mostly academy and ERL tiers that do
+# not belong in a records almanac. This allowlist keeps the TOP-LEVEL league of
+# each major region, CHAINED ACROSS RENAMES so a career reads continuously
+# (NA LCS 2014-18 -> LCS 2019-24 -> LTA N 2025 -> LCS 2026 are all one region).
+# It is materialized into the oe_leagues dimension table by etl.oe_ingest; the
+# gold layer joins against it. The silver tables stay faithful to the source,
+# so changing this list only requires re-running the materialization.
+#
+# scope  — 'regional' (domestic league) or 'intl_secondary' (international event
+#          that the Leaguepedia backfill does not cover; NOT premier, so it does
+#          not feed the Legacy Score).
+# region — the continuous competitive region, stable across renames.
+# tier   — 'major' for the four historically-major regions, else 'regional'.
+OE_SCOPE_REGIONAL = "regional"
+OE_SCOPE_INTL_SECONDARY = "intl_secondary"
+
+# league code -> (scope, region key, region label, tier)
+OE_LEAGUES: dict[str, tuple[str, str, str, str]] = {
+    # --- Korea: OGN Champions -> LCK -------------------------------------
+    "OGN":    (OE_SCOPE_REGIONAL, "korea", "Korea", "major"),          # 2015
+    "LCK":    (OE_SCOPE_REGIONAL, "korea", "Korea", "major"),          # 2016-
+    # --- China -----------------------------------------------------------
+    "LPL":    (OE_SCOPE_REGIONAL, "china", "China", "major"),          # 2016-
+    # --- Europe: EU LCS -> LEC -------------------------------------------
+    "EU LCS": (OE_SCOPE_REGIONAL, "europe", "Europe", "major"),        # 2014-2018
+    "LEC":    (OE_SCOPE_REGIONAL, "europe", "Europe", "major"),        # 2019-
+    # --- North America: NA LCS -> LCS -> LTA N -> LCS ---------------------
+    "NA LCS": (OE_SCOPE_REGIONAL, "north_america", "North America", "major"),  # 2014-2018
+    "LCS":    (OE_SCOPE_REGIONAL, "north_america", "North America", "major"),  # 2019-2024, 2026
+    "LTA N":  (OE_SCOPE_REGIONAL, "north_america", "North America", "major"),  # 2025-
+    # --- Latin America: CLS + LLN -> LLA -> LTA S ------------------------
+    "CLS":    (OE_SCOPE_REGIONAL, "latam", "Latin America", "regional"),  # 2016-2018 (south)
+    "LLN":    (OE_SCOPE_REGIONAL, "latam", "Latin America", "regional"),  # 2017-2018 (north)
+    "LLA":    (OE_SCOPE_REGIONAL, "latam", "Latin America", "regional"),  # 2019-2024
+    "LTA S":  (OE_SCOPE_REGIONAL, "latam", "Latin America", "regional"),  # 2025-
+    # --- Brazil ----------------------------------------------------------
+    "CBLOL":  (OE_SCOPE_REGIONAL, "brazil", "Brazil", "regional"),      # 2015-
+    # --- Americas: LTA cross-conference championship (NA + LatAm + BR) ---
+    "LTA":    (OE_SCOPE_REGIONAL, "americas", "Americas", "regional"),  # 2025
+    # --- Pacific: LMS -> PCS -> LCP --------------------------------------
+    "LMS":    (OE_SCOPE_REGIONAL, "pacific", "Pacific", "regional"),    # 2015-2019
+    "PCS":    (OE_SCOPE_REGIONAL, "pacific", "Pacific", "regional"),    # 2020-
+    "LCP":    (OE_SCOPE_REGIONAL, "pacific", "Pacific", "regional"),    # 2025- (absorbs PCS/LJL/VCS as tier 1)
+    # --- Other tier-1 domestic leagues -----------------------------------
+    "VCS":    (OE_SCOPE_REGIONAL, "vietnam", "Vietnam", "regional"),    # 2018-
+    "LJL":    (OE_SCOPE_REGIONAL, "japan", "Japan", "regional"),        # 2016-
+    "TCL":    (OE_SCOPE_REGIONAL, "turkey", "Turkey", "regional"),      # 2015-
+    "OPL":    (OE_SCOPE_REGIONAL, "oceania", "Oceania", "regional"),    # 2015-2020
+    "LCO":    (OE_SCOPE_REGIONAL, "oceania", "Oceania", "regional"),    # 2021-2024
+    # --- International events outside the Leaguepedia backfill -----------
+    # Real international events, but NOT premier: they go to their own scope and
+    # never feed the Legacy Score (that stays Worlds/MSI/First Stand only).
+    # NOTE: the 2020 Mid-Season Cup ('MSC', 25 games) is deliberately absent —
+    # 'mid-season cup' is in EXHIBITION_SUBSTRINGS, so Leaguepedia-sourced data
+    # already treats it as an exhibition. Including it here would contradict that.
+    "EWC":    (OE_SCOPE_INTL_SECONDARY, "international", "International", "intl"),  # Esports World Cup, 2024-
+    "IEM":    (OE_SCOPE_INTL_SECONDARY, "international", "International", "intl"),  # Intel Extreme Masters, 2015-2017
+    "IWCI":   (OE_SCOPE_INTL_SECONDARY, "international", "International", "intl"),  # Wildcard Invitational, 2016
+}
+
+# Minimum 'complete' games for a player to enter an economy leaderboard
+# (GD@15, gold@15, CS/min). OE marks a game 'partial' when it lacks the @10/@15
+# timings AND the multikill columns — notably the LPL has NO timings from 2022
+# on, so these rankings are computed over complete games only, with a coverage
+# note in the UI. See docs/oracles-elixir-integration.md.
+OE_MIN_COMPLETE_GAMES = 50
+
+
+def oe_league_rows() -> list[tuple[str, str, str, str, str]]:
+    """OE_LEAGUES flattened for insertion into the oe_leagues dimension table."""
+    return [(lg, scope, key, label, tier)
+            for lg, (scope, key, label, tier) in OE_LEAGUES.items()]
+
+
 # --- Table specs ---------------------------------------------------------
 @dataclass
 class TableSpec:

@@ -376,3 +376,16 @@ CREATE TABLE IF NOT EXISTS oe_player_link (
     n_conflicts INTEGER            -- overlapping games that voted for another Link
 );
 CREATE INDEX IF NOT EXISTS idx_oelink_link ON oe_player_link(link);
+
+-- League allowlist (dimension). Materialized from config.OE_LEAGUES by
+-- etl.oe_ingest. OE ships 122 league codes, mostly academy/ERL tiers; the gold
+-- layer joins against this table so only top-level leagues are aggregated.
+-- `region` chains renames together (NA LCS / LCS / LTA N are all north_america)
+-- so a career reads continuously across rebrands.
+CREATE TABLE IF NOT EXISTS oe_leagues (
+    league       TEXT PRIMARY KEY,  -- OE league code, as it appears in the CSVs
+    scope        TEXT NOT NULL,     -- 'regional' | 'intl_secondary'
+    region       TEXT NOT NULL,     -- stable region key across renames
+    region_label TEXT NOT NULL,     -- display name
+    tier         TEXT NOT NULL      -- 'major' | 'regional' | 'intl'
+);

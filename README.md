@@ -67,7 +67,9 @@ npx serve out      # or `npm run dev` for development
   pages, more records (KP%, single-tournament KDA, per role). See
   the plan in `~/.claude/plans/`.
 
-### Legacy Score (player score)
+### Smurf Score (player score)
+
+_Displayed in the UI as "Smurf score"; the internal identifier stays `legacy_score` in code and the DB._
 
 A composite, **interpretable** score of greatness on the big stage (see
 `etl/transform/aggregate.py::_legacy_score`). Since the v1 dataset is international,

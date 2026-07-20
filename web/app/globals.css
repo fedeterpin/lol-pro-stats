@@ -48,16 +48,15 @@
 html { -webkit-text-size-adjust: 100%; }
 html, body { margin: 0; padding: 0; }
 
-/* Reserve the scrollbar gutter always, so navigating between a short page and a
-   long one does not shift the layout width. Browsers with overlay scrollbars
-   (macOS, mobile) reserve nothing, so there is no visual cost there.
-   `color-scheme: dark` is what keeps that reserved strip dark: without it the UA
-   paints the gutter with its light default track, which reads as a white vertical
-   line down the right edge on pages short enough to need no scrollbar. */
-html { color-scheme: dark; scrollbar-gutter: stable; }
-@supports not (scrollbar-gutter: stable) {
-  html { overflow-y: scroll; }
-}
+/* Full-bleed: no reserved scrollbar gutter, so short pages (no scrollbar needed)
+   use the entire viewport width instead of leaving a strip on the right edge. The
+   native scrollbar takes its own space only while a page is long enough to scroll
+   — standard on classic-scrollbar OSes (Windows); on overlay-scrollbar platforms
+   (macOS, mobile) it floats over the content and costs no width. The tradeoff we
+   accept for full width: navigating from a short page to a long one shifts the
+   content by the scrollbar width on classic-scrollbar systems.
+   `color-scheme: dark` keeps native UI (scrollbar track, form controls) dark. */
+html { color-scheme: dark; }
 
 body {
   background: linear-gradient(175deg, var(--bg-0) 0%, var(--bg-1) 45%, var(--bg-2) 100%) fixed;
@@ -68,6 +67,19 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+}
+
+/* App-shell scroll (desktop only): the header stays fixed at the top and only the
+   content below it scrolls, so the scrollbar sits beside the content instead of
+   running the full window height past the navbar. Gated to wider viewports on
+   purpose — on touch/mobile the browser scrollbars are overlays (the strip is
+   invisible anyway) and hijacking the document scroll would stop the URL bar from
+   collapsing, so there we keep the normal full-document scroll. */
+@media (min-width: 721px) {
+  html, body { height: 100%; }
+  body { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  .site-header { flex: 0 0 auto; }
+  .app-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 }
 
 a { color: var(--gold); text-decoration: none; transition: color 150ms ease; }

@@ -34,7 +34,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://smurfeando.gg"),
+  metadataBase: new URL("https://smurfeando.federicoterpin.workers.dev"),
   title: "smurfeando — Hall of Records",
   description:
     "The record book of professional League of Legends: pros so dominant it looks like smurfing. Career KDA, international titles, Worlds appearances and more.",

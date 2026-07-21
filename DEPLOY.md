@@ -14,11 +14,11 @@ When connecting the repo (Workers & Pages → Import a repository):
 - **Deploy command**: `npx wrangler deploy` (default — uses `wrangler.jsonc`)
 - Deploy.
 
-The site lives at `https://smurfeando.<subdomain>.workers.dev` (or the domain
-Cloudflare assigns / a custom one). Note: renaming the Worker creates a NEW
-Worker and `workers.dev` subdomain on the next deploy — delete the old
-`lol-pro-stats` Worker manually in the Cloudflare dashboard; the production domain
-will be `smurfeando.gg`.
+The site lives at `https://smurfeando.federicoterpin.workers.dev` — the canonical
+URL for now (`metadataBase` in `web/app/layout.tsx` must match it). If a custom
+domain is attached later (Worker → Domains & Routes), update `metadataBase` too.
+The 2026-07 rename from `lol-pro-stats` is fully migrated: old Worker deleted,
+repo renamed to `fedeterpin/smurfeando` and reconnected.
 
 ## Updating data (after a Worlds/MSI)
 The **`.github/workflows/update-data.yml`** workflow (GitHub Actions, manual dispatch)
